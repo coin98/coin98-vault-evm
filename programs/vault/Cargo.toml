@@ -1,0 +1,20 @@
+[package]
+name = "coin98-vault"
+version = "0.1.0"
+authors = ["lukaz"]
+license = "Apache-2.0"
+edition = "2018"
+
+[dependencies]
+anchor-lang = "0.9.0"
+solana-program = "1.7.1"
+
+[features]
+cpi = ["no-entrypoint"]
+default = []
+no-entrypoint = []
+no-idl = []
+
+[lib]
+name = "vault"
+crate-type = ["cdylib", "lib"]

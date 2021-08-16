@@ -1,0 +1,7 @@
+# Intermediate file & folders
+/build
+/dist
+/node_modules
+/target
+/shared_accounts/*.json
+/package-lock.json
