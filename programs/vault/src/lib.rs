@@ -31,7 +31,21 @@ mod coin98_vault {
 
     let vault = &ctx.accounts.vault;
     let vault_signer = &ctx.accounts.vault_signer;
+    let owner = &ctx.accounts.owner;
     let recipient = &ctx.accounts.recipient;
+
+    let mut is_authorized = false;
+    if vault.owner == *owner.key {
+      is_authorized = true;
+    }
+    for (_i, member) in vault.members.iter().enumerate() {
+      if member == owner.key {
+        is_authorized = true;
+      }
+    }
+    if !is_authorized {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
 
     let instruction = &solana_program::system_instruction::transfer(vault_signer.key, recipient.key, amount);
     let seeds: &[&[_]] = &[
@@ -55,9 +69,23 @@ mod coin98_vault {
 
     let vault = &ctx.accounts.vault;
     let vault_signer = &ctx.accounts.vault_signer;
+    let owner = &ctx.accounts.owner;
     let sender = &ctx.accounts.sender;
     let recipient = &ctx.accounts.recipient;
     let token_program = &ctx.accounts.token_program;
+
+    let mut is_authorized = false;
+    if vault.owner == *owner.key {
+      is_authorized = true;
+    }
+    for (_i, member) in vault.members.iter().enumerate() {
+      if member == owner.key {
+        is_authorized = true;
+      }
+    }
+    if !is_authorized {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
 
     let data = TransferTokenParams {
       instruction: 3,
@@ -77,7 +105,7 @@ mod coin98_vault {
       vault.to_account_info().key.as_ref(),
       &[vault.nonce],
     ];
-    let result = solana_program::program::invoke_signed(&instruction, &[vault_signer.clone(), recipient.clone()], &[&seeds]);
+    let result = solana_program::program::invoke_signed(&instruction, &[sender.clone(), recipient.clone(), vault_signer.clone()], &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -144,7 +172,7 @@ mod coin98_vault {
 }
 
 #[derive(Accounts)]
-#[instruction(vault_path: Vec<u8>, vault_nonce: u8, _signer_nonce: u8, size: usize)]
+#[instruction(vault_path: Vec<u8>, vault_nonce: u8, _signer_nonce: u8)]
 pub struct CreateVaultContext<'info> {
 
   #[account(signer)]
@@ -154,7 +182,7 @@ pub struct CreateVaultContext<'info> {
     &[93, 85, 196,  21, 227, 86, 221, 123],
     &*vault_path,
     &[vault_nonce]
-  ], payer = payer, space = size)]
+  ], payer = payer, space = 589)]
   pub vault: ProgramAccount<'info, Vault>,
 
   pub rent: Sysvar<'info, Rent>,
