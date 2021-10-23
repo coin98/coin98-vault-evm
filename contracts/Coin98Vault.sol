@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity >= 0.8.0;
 
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP.
@@ -88,7 +88,7 @@ interface IERC20 {
  * This contract is only required for intermediate, library-like contracts.
  */
 abstract contract Context {
-  function _msgSender() internal view returns (address payable) {
+  function _msgSender() internal view returns (address) {
     return msg.sender;
   }
 
@@ -162,5 +162,118 @@ abstract contract Ownable is Context {
   function transferOwnership(address newOwner) public onlyOwner {
     require(newOwner != address(0), "Ownable: new owner is the zero address");
     _newOwner = newOwner;
+  }
+}
+
+
+contract Coin98VestingVault is Ownable {
+
+  address[] private _members;
+  mapping(address => bool) private _memberStatuses;
+  address[] private _recipients;
+  mapping(address => bytes32[]) private _schedules;
+  mapping(bytes32 => ScheduleData) private _scheduleDatas;
+
+  struct ScheduleData {
+    address token;
+    uint256 timestamp;
+    uint256 amount;
+  }
+
+  modifier onlyMember() {
+    require(owner() == _msgSender() || _memberStatuses[_msgSender()], "Ownable: caller is not a member");
+    _;
+  }
+
+  function setMembers(address[] memory nMembers_, bool[] memory nStatuses_) public onlyOwner {
+    uint256 i;
+    for(i = 0; i < nMembers_.length; i++) {
+      address nMember = nMembers_[i];
+      if(nStatuses_[i]) {
+        _members.push(nMember);
+        _memberStatuses[nMember] = nStatuses_[i];
+      } else {
+        uint256 j;
+        for(j = 0; j < _members.length; j++) {
+          if(_members[j] == nMember) {
+            _members[j] = _members[_members.length - 1];
+            _members.pop();
+            delete _memberStatuses[nMember];
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  function withdraw(address token_, address destination_, uint256 amount_) public onlyMember {
+    IERC20(token_).transfer(destination_, amount_);
+  }
+
+  function schedule(address token_, uint256 timestamp_, address[] memory nRecipients_, uint256[] memory nAmounts_) public {
+    uint256 i;
+    for(i = 0; i < nRecipients_.length; i++) {
+      address nRecipient = nRecipients_[i];
+      uint256 amount = nAmounts_[i];
+      bool isRecipientExist = _schedules[nRecipient].length > 0;
+      bytes32 scheduleKey = keccak256(abi.encodePacked(nRecipient, token_, timestamp_));
+
+      ScheduleData memory nSchedule;
+      nSchedule.token = token_;
+      nSchedule.timestamp = block.timestamp;
+      nSchedule.amount = amount;
+
+      _scheduleDatas[scheduleKey] = nSchedule;
+      uint256 j;
+      uint256 found = 0;
+      for(j = 0; j < _schedules[nRecipient].length; j++) {
+        if(_schedules[nRecipient][j] == scheduleKey) {
+          found = 1;
+          break;
+        }
+      }
+      if(found == 0) {
+        _schedules[nRecipient].push(scheduleKey);
+      }
+
+      if(isRecipientExist) {
+        _recipients.push(nRecipient);
+      }
+    }
+  }
+
+  function redeem(address token_) public {
+    bytes32[] memory recipientSchedules = _schedules[_msgSender()];
+    uint256 totalAmount;
+    uint256 availableAmount = IERC20(token_).balanceOf(address(this));
+
+    uint256 blockTime = block.timestamp;
+    uint256 i;
+    for(i = 0; i < _schedules[_msgSender()].length; i++) {
+      bytes32 scheduleKey = _schedules[_msgSender()][i];
+      if(_scheduleDatas[scheduleKey].token == token_ && _scheduleDatas[scheduleKey].timestamp <= blockTime) {
+        if (totalAmount + _scheduleDatas[scheduleKey].amount > availableAmount) {
+          break;
+        }
+        totalAmount += _scheduleDatas[scheduleKey].amount;
+        _schedules[_msgSender()][i] = _schedules[_msgSender()][_schedules[_msgSender()].length - 1];
+        _schedules[_msgSender()].pop();
+        delete _scheduleDatas[scheduleKey];
+      }
+    }
+
+    require(totalAmount > 0, "C98Vault: Nothing to redeem");
+
+    if(_schedules[_msgSender()].length == 0) {
+      for(i = 0; i < _recipients.length; i++) {
+        if(_recipients[i] == _msgSender()) {
+          _recipients[i] = _recipients[_recipients.length - 1];
+          _recipients.pop();
+        }
+      }
+    }
+    _schedules[_msgSender()] = recipientSchedules;
+
+    IERC20(token_).transfer(_msgSender(), totalAmount);
   }
 }
