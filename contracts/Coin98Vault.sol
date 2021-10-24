@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >= 0.8.0;
+pragma solidity ^0.8.0;
 
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP.
@@ -75,6 +75,12 @@ interface IERC20 {
     * a call to {approve}. `value` is the new allowance.
     */
   event Approval(address indexed owner, address indexed spender, uint256 value);
+}
+
+
+interface IVaultConfig {
+
+  function fee() external view returns (uint256);
 }
 
 /*
@@ -165,14 +171,38 @@ abstract contract Ownable is Context {
   }
 }
 
+abstract contract Payable {
 
-contract Coin98VestingVault is Ownable {
+  event Deposited(address indexed sender, uint256 value);
 
+  fallback() external payable {
+    if (msg.value > 0) {
+      emit Deposited(msg.sender, msg.value);
+    }
+  }
+
+  /// @dev enable wallet to receive ETH
+  receive() external payable {
+    if (msg.value > 0) {
+      emit Deposited(msg.sender, msg.value);
+    }
+  }
+}
+
+contract Coin98Vault is Ownable, Payable {
+
+  address private _factory;
   address[] private _members;
   mapping(address => bool) private _memberStatuses;
   address[] private _recipients;
   mapping(address => bytes32[]) private _schedules;
   mapping(bytes32 => ScheduleData) private _scheduleDatas;
+
+  /// @dev Initialize a new vault
+  /// @param factory_ Back reference to the factory initialized this vault for global configuration
+  constructor(address factory_) {
+    _factory = factory_;
+  }
 
   struct ScheduleData {
     address token;
@@ -180,18 +210,56 @@ contract Coin98VestingVault is Ownable {
     uint256 amount;
   }
 
+  event MemberAdded(address indexed member);
+  event MemberRemoved(address indexed member);
+  event RecipientAdded(address indexed recipient);
+  event Redeemed(address indexed recipient, address indexed token, uint256 value);
+  event ScheduleUpdated(bytes32 schedule, address indexed recipient, address indexed token, uint256 timestamp, uint256 amount);
+  event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
+
+  /// @dev Access Control, only owner and members are able to access the specified function
   modifier onlyMember() {
     require(owner() == _msgSender() || _memberStatuses[_msgSender()], "Ownable: caller is not a member");
     _;
   }
 
+  /// @dev returns current members of the vault
+  function members() public view returns (address[] memory) {
+    return _members;
+  }
+
+  /// @dev returns current recipents that can redeem funds from vault
+  function recipients() public view returns (address[] memory) {
+    return _recipients;
+  }
+
+  /// @dev returns vesting schedule of a particular recipent
+  /// @param recipient_ address of the recipent
+  function schedules(address recipient_) public view returns (ScheduleData[] memory) {
+    ScheduleData[] memory results = new ScheduleData[](_schedules[recipient_].length);
+    uint256 i;
+    for(i = 0; i < _schedules[recipient_].length; i++) {
+      results[i] = _scheduleDatas[_schedules[recipient_][i]];
+    }
+    return results;
+  }
+
+  /// @dev add/remove member of the vault.
+  /// @param nMembers_ list to address to update
+  /// @param nStatuses_ address with same index will be added if true, or remove if false
+  /// members will have access to all tokens in the vault
   function setMembers(address[] memory nMembers_, bool[] memory nStatuses_) public onlyOwner {
+    require(nMembers_.length != 0, "C98Vault: Empty arguments");
+    require(nStatuses_.length != 0, "C98Vault: Empty arguments");
+    require(nMembers_.length == nStatuses_.length, "C98Vault: Invalid arguments");
+
     uint256 i;
     for(i = 0; i < nMembers_.length; i++) {
       address nMember = nMembers_[i];
       if(nStatuses_[i]) {
         _members.push(nMember);
         _memberStatuses[nMember] = nStatuses_[i];
+        emit MemberAdded(nMember);
       } else {
         uint256 j;
         for(j = 0; j < _members.length; j++) {
@@ -199,6 +267,7 @@ contract Coin98VestingVault is Ownable {
             _members[j] = _members[_members.length - 1];
             _members.pop();
             delete _memberStatuses[nMember];
+            emit MemberRemoved(nMember);
             break;
           }
         }
@@ -206,24 +275,50 @@ contract Coin98VestingVault is Ownable {
     }
   }
 
+  /// @dev withdraw the token in the vault, no limit
+  /// @param token_ address of the token, use address(0) to withdraw gas token
+  /// @param destination_ recipient address to receive the fund
+  /// @param amount_ amount of fund to withdaw
+  /// Only owner and member can use this function
   function withdraw(address token_, address destination_, uint256 amount_) public onlyMember {
-    IERC20(token_).transfer(destination_, amount_);
+    require(destination_ != address(0), "C98Vault: destination is zero address");
+
+    if(token_ == address(0)) {
+      destination_.call{value:amount_}("");
+    } else {
+      IERC20(token_).transfer(destination_, amount_);
+    }
+
+    emit Withdrawn(_msgSender(), destination_, token_, amount_);
   }
 
-  function schedule(address token_, uint256 timestamp_, address[] memory nRecipients_, uint256[] memory nAmounts_) public {
+  /// @dev set the schedule for a specified token
+  /// @param token_ address of the token for vesting
+  /// @param timestamp_ timestamp in second. after this timestamp, the token will be available for redemption
+  /// @param nRecipients_ list of recepient for a vesting batch
+  /// @param nAmounts_ amount of token to be redeemed for a recipient with the same index
+  /// Only owner can use this function
+  function schedule(address token_, uint256 timestamp_, address[] memory nRecipients_, uint256[] memory nAmounts_) onlyOwner public {
+    require(nRecipients_.length != 0, "C98Vault: Empty arguments");
+    require(nAmounts_.length != 0, "C98Vault: Empty arguments");
+    require(nRecipients_.length == nAmounts_.length, "C98Vault: Invalid arguments");
+
     uint256 i;
     for(i = 0; i < nRecipients_.length; i++) {
       address nRecipient = nRecipients_[i];
-      uint256 amount = nAmounts_[i];
+      uint256 nAmount = nAmounts_[i];
+
       bool isRecipientExist = _schedules[nRecipient].length > 0;
       bytes32 scheduleKey = keccak256(abi.encodePacked(nRecipient, token_, timestamp_));
 
       ScheduleData memory nSchedule;
       nSchedule.token = token_;
       nSchedule.timestamp = block.timestamp;
-      nSchedule.amount = amount;
+      nSchedule.amount = nAmount;
 
       _scheduleDatas[scheduleKey] = nSchedule;
+      emit ScheduleUpdated(scheduleKey, nRecipient, token_, timestamp_, nAmount);
+
       uint256 j;
       uint256 found = 0;
       for(j = 0; j < _schedules[nRecipient].length; j++) {
@@ -235,17 +330,24 @@ contract Coin98VestingVault is Ownable {
       if(found == 0) {
         _schedules[nRecipient].push(scheduleKey);
       }
-
-      if(isRecipientExist) {
+      if(!isRecipientExist) {
         _recipients.push(nRecipient);
+        emit RecipientAdded(nRecipient);
       }
     }
   }
 
+  /// @dev claim the token user is eligible from schedule
+  /// user must use the address whitelisted in schedule
   function redeem(address token_) public {
     bytes32[] memory recipientSchedules = _schedules[_msgSender()];
     uint256 totalAmount;
-    uint256 availableAmount = IERC20(token_).balanceOf(address(this));
+    uint256 availableAmount;
+    if(token_ == address(0)) {
+      availableAmount = address(this).balance;
+    } else {
+      availableAmount = IERC20(token_).balanceOf(address(this));
+    }
 
     uint256 blockTime = block.timestamp;
     uint256 i;
@@ -274,6 +376,61 @@ contract Coin98VestingVault is Ownable {
     }
     _schedules[_msgSender()] = recipientSchedules;
 
-    IERC20(token_).transfer(_msgSender(), totalAmount);
+    uint256 fee = IVaultConfig(_factory).fee();
+    if(fee > 0) {
+      _factory.call{value:fee}("");
+    }
+    if(token_ == address(0)) {
+      _msgSender().call{value:totalAmount}("");
+    } else {
+      IERC20(token_).transfer(_msgSender(), totalAmount);
+    }
+
+    emit Redeemed(_msgSender(), token_, totalAmount);
+  }
+}
+
+contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
+
+  uint256 private _fee;
+
+  /// @dev Emit `FeeUpdated` when a new vault is created
+  event Created(address indexed vault);
+  /// @dev Emit `FeeUpdated` when fee of the protocol is updated
+  event FeeUpdated(uint256 fee);
+  /// @dev Emit `Withdrawn` when owner withdraw fund from the factory
+  event Withdrawn(address indexed owner, address indexed recipient, uint256 value);
+
+  /// @dev get current protocol fee in gas token
+  function fee() override external view returns (uint256) {
+    return _fee;
+  }
+
+  /// @dev create a new vault
+  /// Address calling this function will be assigned as owner of the newly created vault
+  function createVault() external returns (Coin98Vault vault) {
+    vault = new Coin98Vault(address(this));
+
+    emit Created(address(vault));
+  }
+
+  /// @dev change protocol fee
+  /// @param fee_ amount of gas token to charge for every redeem. can be ZERO to disable protocol fee
+  function setFee(uint256 fee_) public onlyOwner {
+    _fee = fee_;
+
+    emit FeeUpdated(fee_);
+  }
+
+  /// @dev withdraw fee collected for protocol
+  /// @param destination_ recipient address
+  /// @param amount_ amount to withdraw
+  function withdrawFee(address destination_, uint256 amount_) public onlyOwner {
+    require(destination_ != address(0), "C98Vault: destination is zero address");
+    require(amount_ <= address(this).balance, "C98Vault: Not enough balance.");
+
+    destination_.call{value:amount_}("");
+
+    emit Withdrawn(_msgSender(), destination_, amount_);
   }
 }
