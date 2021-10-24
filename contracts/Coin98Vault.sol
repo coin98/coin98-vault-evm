@@ -77,6 +77,163 @@ interface IERC20 {
   event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
+/**
+ * @dev Interface of the ERC165 standard, as defined in the
+ * https://eips.ethereum.org/EIPS/eip-165[EIP].
+ *
+ * Implementers can declare support of contract interfaces, which can then be
+ * queried by others ({ERC165Checker}).
+ *
+ * For an implementation, see {ERC165}.
+ */
+interface IERC165 {
+  /**
+    * @dev Returns true if this contract implements the interface defined by
+    * `interfaceId`. See the corresponding
+    * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
+    * to learn more about how these ids are created.
+    *
+    * This function call must use less than 30 000 gas.
+    */
+  function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
+
+/**
+ * @dev Required interface of an ERC721 compliant contract.
+ */
+interface IERC721 is IERC165 {
+  /**
+    * @dev Emitted when `tokenId` token is transferred from `from` to `to`.
+    */
+  event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+
+  /**
+    * @dev Emitted when `owner` enables `approved` to manage the `tokenId` token.
+    */
+  event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+
+  /**
+    * @dev Emitted when `owner` enables or disables (`approved`) `operator` to manage all of its assets.
+    */
+  event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
+  /**
+    * @dev Returns the number of tokens in ``owner``'s account.
+    */
+  function balanceOf(address owner) external view returns (uint256 balance);
+
+  /**
+    * @dev Returns the owner of the `tokenId` token.
+    *
+    * Requirements:
+    *
+    * - `tokenId` must exist.
+    */
+  function ownerOf(uint256 tokenId) external view returns (address owner);
+
+  /**
+    * @dev Safely transfers `tokenId` token from `from` to `to`, checking first that contract recipients
+    * are aware of the ERC721 protocol to prevent tokens from being forever locked.
+    *
+    * Requirements:
+    *
+    * - `from` cannot be the zero address.
+    * - `to` cannot be the zero address.
+    * - `tokenId` token must exist and be owned by `from`.
+    * - If the caller is not `from`, it must be have been allowed to move this token by either {approve} or {setApprovalForAll}.
+    * - If `to` refers to a smart contract, it must implement {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
+    *
+    * Emits a {Transfer} event.
+    */
+  function safeTransferFrom(
+    address from,
+    address to,
+    uint256 tokenId
+  ) external;
+
+  /**
+    * @dev Transfers `tokenId` token from `from` to `to`.
+    *
+    * WARNING: Usage of this method is discouraged, use {safeTransferFrom} whenever possible.
+    *
+    * Requirements:
+    *
+    * - `from` cannot be the zero address.
+    * - `to` cannot be the zero address.
+    * - `tokenId` token must be owned by `from`.
+    * - If the caller is not `from`, it must be approved to move this token by either {approve} or {setApprovalForAll}.
+    *
+    * Emits a {Transfer} event.
+    */
+  function transferFrom(
+    address from,
+    address to,
+    uint256 tokenId
+  ) external;
+
+  /**
+    * @dev Gives permission to `to` to transfer `tokenId` token to another account.
+    * The approval is cleared when the token is transferred.
+    *
+    * Only a single account can be approved at a time, so approving the zero address clears previous approvals.
+    *
+    * Requirements:
+    *
+    * - The caller must own the token or be an approved operator.
+    * - `tokenId` must exist.
+    *
+    * Emits an {Approval} event.
+    */
+  function approve(address to, uint256 tokenId) external;
+
+  /**
+    * @dev Returns the account approved for `tokenId` token.
+    *
+    * Requirements:
+    *
+    * - `tokenId` must exist.
+    */
+  function getApproved(uint256 tokenId) external view returns (address operator);
+
+  /**
+    * @dev Approve or remove `operator` as an operator for the caller.
+    * Operators can call {transferFrom} or {safeTransferFrom} for any token owned by the caller.
+    *
+    * Requirements:
+    *
+    * - The `operator` cannot be the caller.
+    *
+    * Emits an {ApprovalForAll} event.
+    */
+  function setApprovalForAll(address operator, bool _approved) external;
+
+  /**
+    * @dev Returns if the `operator` is allowed to manage all of the assets of `owner`.
+    *
+    * See {setApprovalForAll}
+    */
+  function isApprovedForAll(address owner, address operator) external view returns (bool);
+
+  /**
+    * @dev Safely transfers `tokenId` token from `from` to `to`.
+    *
+    * Requirements:
+    *
+    * - `from` cannot be the zero address.
+    * - `to` cannot be the zero address.
+    * - `tokenId` token must exist and be owned by `from`.
+    * - If the caller is not `from`, it must be approved to move this token by either {approve} or {setApprovalForAll}.
+    * - If `to` refers to a smart contract, it must implement {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
+    *
+    * Emits a {Transfer} event.
+    */
+  function safeTransferFrom(
+    address from,
+    address to,
+    uint256 tokenId,
+    bytes calldata data
+  ) external;
+}
 
 interface IVaultConfig {
 
@@ -175,6 +332,9 @@ abstract contract Ownable is Context {
   }
 }
 
+/**
+ * @dev Enable contract to receive gas token
+ */
 abstract contract Payable {
 
   event Deposited(address indexed sender, uint256 value);
@@ -193,6 +353,9 @@ abstract contract Payable {
   }
 }
 
+/**
+ * @dev Coin98Vault contract to enable vesting funds to investors
+ */
 contract Coin98Vault is Ownable, Payable {
 
   address private _factory;
@@ -283,9 +446,17 @@ contract Coin98Vault is Ownable, Payable {
   /// @param token_ address of the token, use address(0) to withdraw gas token
   /// @param destination_ recipient address to receive the fund
   /// @param amount_ amount of fund to withdaw
-  /// Only owner and admins can use this function
   function withdraw(address token_, address destination_, uint256 amount_) public onlyAdmin {
-    require(destination_ != address(0), "C98Vault: destination is zero address");
+    require(destination_ != address(0), "C98Vault: Destination is zero address");
+
+    uint256 availableAmount;
+    if(token_ == address(0)) {
+      availableAmount = address(this).balance;
+    } else {
+      availableAmount = IERC20(token_).balanceOf(address(this));
+    }
+
+    require(amount_ <= availableAmount, "C98Vault: Not enough balance");
 
     if(token_ == address(0)) {
       destination_.call{value:amount_}("");
@@ -294,6 +465,18 @@ contract Coin98Vault is Ownable, Payable {
     }
 
     emit Withdrawn(_msgSender(), destination_, token_, amount_);
+  }
+
+  /// @dev withdraw NFT from contract
+  /// @param token_ address of the token, use address(0) to withdraw gas token
+  /// @param destination_ recipient address to receive the fund
+  /// @param tokenId_ ID of NFT to withdraw
+  function withdrawNft(address token_, address destination_, uint256 tokenId_) public onlyAdmin {
+    require(destination_ != address(0), "C98Vault: destination is zero address");
+
+    IERC721(token_).transferFrom(address(this), destination_, tokenId_);
+
+    emit Withdrawn(_msgSender(), destination_, token_, 1);
   }
 
   /// @dev set the schedule for a specified token
@@ -408,7 +591,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
   /// @dev Emit `FeeUpdated` when fee of the protocol is updated
   event FeeUpdated(uint256 fee);
   /// @dev Emit `Withdrawn` when owner withdraw fund from the factory
-  event Withdrawn(address indexed owner, address indexed recipient, uint256 value);
+  event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
 
   /// @dev get current protocol fee in gas token
   function fee() override external view returns (uint256) {
@@ -432,14 +615,39 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
   }
 
   /// @dev withdraw fee collected for protocol
-  /// @param destination_ recipient address
-  /// @param amount_ amount to withdraw
-  function withdrawFee(address destination_, uint256 amount_) public onlyOwner {
+  /// @param token_ address of the token, use address(0) to withdraw gas token
+  /// @param destination_ recipient address to receive the fund
+  /// @param amount_ amount of fund to withdaw
+  function withdraw(address token_, address destination_, uint256 amount_) public onlyOwner {
+    require(destination_ != address(0), "C98Vault: Destination is zero address");
+
+    uint256 availableAmount;
+    if(token_ == address(0)) {
+      availableAmount = address(this).balance;
+    } else {
+      availableAmount = IERC20(token_).balanceOf(address(this));
+    }
+
+    require(amount_ <= availableAmount, "C98Vault: Not enough balance");
+
+    if(token_ == address(0)) {
+      destination_.call{value:amount_}("");
+    } else {
+      IERC20(token_).transfer(destination_, amount_);
+    }
+
+    emit Withdrawn(_msgSender(), destination_, token_, amount_);
+  }
+
+  /// @dev withdraw NFT from contract
+  /// @param token_ address of the token, use address(0) to withdraw gas token
+  /// @param destination_ recipient address to receive the fund
+  /// @param tokenId_ ID of NFT to withdraw
+  function withdrawNft(address token_, address destination_, uint256 tokenId_) public onlyOwner {
     require(destination_ != address(0), "C98Vault: destination is zero address");
-    require(amount_ <= address(this).balance, "C98Vault: Not enough balance.");
 
-    destination_.call{value:amount_}("");
+    IERC721(token_).transferFrom(address(this), destination_, tokenId_);
 
-    emit Withdrawn(_msgSender(), destination_, amount_);
+    emit Withdrawn(_msgSender(), destination_, token_, 1);
   }
 }
