@@ -102,6 +102,10 @@ abstract contract Context {
     this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
     return msg.data;
   }
+
+  function _msgValue() internal view returns (uint256) {
+    return msg.value;
+  }
 }
 
 /**
@@ -192,8 +196,8 @@ abstract contract Payable {
 contract Coin98Vault is Ownable, Payable {
 
   address private _factory;
-  address[] private _members;
-  mapping(address => bool) private _memberStatuses;
+  address[] private _admins;
+  mapping(address => bool) private _adminStatuses;
   address[] private _recipients;
   mapping(address => bytes32[]) private _schedules;
   mapping(bytes32 => ScheduleData) private _scheduleDatas;
@@ -210,22 +214,22 @@ contract Coin98Vault is Ownable, Payable {
     uint256 amount;
   }
 
-  event MemberAdded(address indexed member);
-  event MemberRemoved(address indexed member);
+  event AdminAdded(address indexed admin);
+  event AdminRemoved(address indexed admin);
   event RecipientAdded(address indexed recipient);
   event Redeemed(address indexed recipient, address indexed token, uint256 value);
   event ScheduleUpdated(bytes32 schedule, address indexed recipient, address indexed token, uint256 timestamp, uint256 amount);
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
 
-  /// @dev Access Control, only owner and members are able to access the specified function
-  modifier onlyMember() {
-    require(owner() == _msgSender() || _memberStatuses[_msgSender()], "Ownable: caller is not a member");
+  /// @dev Access Control, only owner and admins are able to access the specified function
+  modifier onlyAdmin() {
+    require(owner() == _msgSender() || _adminStatuses[_msgSender()], "Ownable: caller is not an admin");
     _;
   }
 
-  /// @dev returns current members of the vault
-  function members() public view returns (address[] memory) {
-    return _members;
+  /// @dev returns current admins who can manage the vault
+  function admins() public view returns (address[] memory) {
+    return _admins;
   }
 
   /// @dev returns current recipents that can redeem funds from vault
@@ -244,30 +248,30 @@ contract Coin98Vault is Ownable, Payable {
     return results;
   }
 
-  /// @dev add/remove member of the vault.
-  /// @param nMembers_ list to address to update
+  /// @dev add/remove admin of the vault.
+  /// @param nAdmins_ list to address to update
   /// @param nStatuses_ address with same index will be added if true, or remove if false
-  /// members will have access to all tokens in the vault
-  function setMembers(address[] memory nMembers_, bool[] memory nStatuses_) public onlyOwner {
-    require(nMembers_.length != 0, "C98Vault: Empty arguments");
+  /// admins will have access to all tokens in the vault, and can define vesting schedule
+  function setAdmins(address[] memory nAdmins_, bool[] memory nStatuses_) public onlyOwner {
+    require(nAdmins_.length != 0, "C98Vault: Empty arguments");
     require(nStatuses_.length != 0, "C98Vault: Empty arguments");
-    require(nMembers_.length == nStatuses_.length, "C98Vault: Invalid arguments");
+    require(nAdmins_.length == nStatuses_.length, "C98Vault: Invalid arguments");
 
     uint256 i;
-    for(i = 0; i < nMembers_.length; i++) {
-      address nMember = nMembers_[i];
+    for(i = 0; i < nAdmins_.length; i++) {
+      address nAdmin = nAdmins_[i];
       if(nStatuses_[i]) {
-        _members.push(nMember);
-        _memberStatuses[nMember] = nStatuses_[i];
-        emit MemberAdded(nMember);
+        _admins.push(nAdmin);
+        _adminStatuses[nAdmin] = nStatuses_[i];
+        emit AdminAdded(nAdmin);
       } else {
         uint256 j;
-        for(j = 0; j < _members.length; j++) {
-          if(_members[j] == nMember) {
-            _members[j] = _members[_members.length - 1];
-            _members.pop();
-            delete _memberStatuses[nMember];
-            emit MemberRemoved(nMember);
+        for(j = 0; j < _admins.length; j++) {
+          if(_admins[j] == nAdmin) {
+            _admins[j] = _admins[_admins.length - 1];
+            _admins.pop();
+            delete _adminStatuses[nAdmin];
+            emit AdminRemoved(nAdmin);
             break;
           }
         }
@@ -279,8 +283,8 @@ contract Coin98Vault is Ownable, Payable {
   /// @param token_ address of the token, use address(0) to withdraw gas token
   /// @param destination_ recipient address to receive the fund
   /// @param amount_ amount of fund to withdaw
-  /// Only owner and member can use this function
-  function withdraw(address token_, address destination_, uint256 amount_) public onlyMember {
+  /// Only owner and admins can use this function
+  function withdraw(address token_, address destination_, uint256 amount_) public onlyAdmin {
     require(destination_ != address(0), "C98Vault: destination is zero address");
 
     if(token_ == address(0)) {
@@ -298,7 +302,7 @@ contract Coin98Vault is Ownable, Payable {
   /// @param nRecipients_ list of recepient for a vesting batch
   /// @param nAmounts_ amount of token to be redeemed for a recipient with the same index
   /// Only owner can use this function
-  function schedule(address token_, uint256 timestamp_, address[] memory nRecipients_, uint256[] memory nAmounts_) onlyOwner public {
+  function schedule(address token_, uint256 timestamp_, address[] memory nRecipients_, uint256[] memory nAmounts_) onlyAdmin public {
     require(nRecipients_.length != 0, "C98Vault: Empty arguments");
     require(nAmounts_.length != 0, "C98Vault: Empty arguments");
     require(nRecipients_.length == nAmounts_.length, "C98Vault: Invalid arguments");
@@ -313,7 +317,7 @@ contract Coin98Vault is Ownable, Payable {
 
       ScheduleData memory nSchedule;
       nSchedule.token = token_;
-      nSchedule.timestamp = block.timestamp;
+      nSchedule.timestamp = timestamp_;
       nSchedule.amount = nAmount;
 
       _scheduleDatas[scheduleKey] = nSchedule;
@@ -339,8 +343,12 @@ contract Coin98Vault is Ownable, Payable {
 
   /// @dev claim the token user is eligible from schedule
   /// user must use the address whitelisted in schedule
-  function redeem(address token_) public {
-    bytes32[] memory recipientSchedules = _schedules[_msgSender()];
+  function redeem(address token_) public payable {
+    uint256 fee = IVaultConfig(_factory).fee();
+    if(fee > 0) {
+      require(_msgValue() == fee, "C98Vault: Invalid fee");
+    }
+
     uint256 totalAmount;
     uint256 availableAmount;
     if(token_ == address(0)) {
@@ -351,7 +359,7 @@ contract Coin98Vault is Ownable, Payable {
 
     uint256 blockTime = block.timestamp;
     uint256 i;
-    for(i = 0; i < _schedules[_msgSender()].length; i++) {
+    for(i = 0; i < _schedules[_msgSender()].length;) {
       bytes32 scheduleKey = _schedules[_msgSender()][i];
       if(_scheduleDatas[scheduleKey].token == token_ && _scheduleDatas[scheduleKey].timestamp <= blockTime) {
         if (totalAmount + _scheduleDatas[scheduleKey].amount > availableAmount) {
@@ -361,7 +369,9 @@ contract Coin98Vault is Ownable, Payable {
         _schedules[_msgSender()][i] = _schedules[_msgSender()][_schedules[_msgSender()].length - 1];
         _schedules[_msgSender()].pop();
         delete _scheduleDatas[scheduleKey];
+        continue;
       }
+      i++;
     }
 
     require(totalAmount > 0, "C98Vault: Nothing to redeem");
@@ -374,11 +384,10 @@ contract Coin98Vault is Ownable, Payable {
         }
       }
     }
-    _schedules[_msgSender()] = recipientSchedules;
 
-    uint256 fee = IVaultConfig(_factory).fee();
     if(fee > 0) {
-      _factory.call{value:fee}("");
+      (bool success, bytes memory data) = _factory.call{value:fee}("");
+      require(success, "C98Vault: Unable to charge fee");
     }
     if(token_ == address(0)) {
       _msgSender().call{value:totalAmount}("");
