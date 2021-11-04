@@ -237,6 +237,7 @@ interface IERC721 is IERC165 {
 interface IVaultConfig {
 
   function fee() external view returns (uint256);
+  function ownerReward() external view returns (uint256);
 }
 
 /*
@@ -568,7 +569,9 @@ contract Coin98Vault is Ownable, Payable {
     }
 
     if(fee > 0) {
-      (bool success, bytes memory data) = _factory.call{value:fee}("");
+      uint256 reward = IVaultConfig(_factory).ownerReward();
+      uint256 finalFee = fee - reward;
+      (bool success, bytes memory data) = _factory.call{value:finalFee}("");
       require(success, "C98Vault: Unable to charge fee");
     }
     if(token_ == address(0)) {
@@ -584,17 +587,25 @@ contract Coin98Vault is Ownable, Payable {
 contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
 
   uint256 private _fee;
+  uint256 private _ownerReward;
 
   /// @dev Emit `FeeUpdated` when a new vault is created
   event Created(address indexed vault);
   /// @dev Emit `FeeUpdated` when fee of the protocol is updated
   event FeeUpdated(uint256 fee);
+  /// @dev Emit `OwnerRewardUpdated` when reward for vault owner is updated
+  event OwnerRewardUpdated(uint256 fee);
   /// @dev Emit `Withdrawn` when owner withdraw fund from the factory
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
 
   /// @dev get current protocol fee in gas token
   function fee() override external view returns (uint256) {
     return _fee;
+  }
+
+  /// @dev get current owner reward in gas token
+  function ownerReward() override external view returns (uint256) {
+    return _ownerReward;
   }
 
   /// @dev create a new vault
@@ -607,10 +618,15 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
 
   /// @dev change protocol fee
   /// @param fee_ amount of gas token to charge for every redeem. can be ZERO to disable protocol fee
-  function setFee(uint256 fee_) public onlyOwner {
+  /// @param reward_ amount of gas token to incentive vault owner. this reward will be deduce from protocol fee
+  function setFee(uint256 fee_, uint256 reward_) public onlyOwner {
+    require(fee_ >= reward_, "C98Vault: Invalid reward amount");
+
     _fee = fee_;
+    _ownerReward = reward_;
 
     emit FeeUpdated(fee_);
+    emit OwnerRewardUpdated(reward_);
   }
 
   /// @dev withdraw fee collected for protocol
