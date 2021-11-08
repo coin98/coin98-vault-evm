@@ -340,14 +340,14 @@ abstract contract Payable {
   event Deposited(address indexed sender, uint256 value);
 
   fallback() external payable {
-    if (msg.value > 0) {
+    if(msg.value > 0) {
       emit Deposited(msg.sender, msg.value);
     }
   }
 
   /// @dev enable wallet to receive ETH
   receive() external payable {
-    if (msg.value > 0) {
+    if(msg.value > 0) {
       emit Deposited(msg.sender, msg.value);
     }
   }
@@ -363,6 +363,7 @@ contract Coin98Vault is Ownable, Payable {
   mapping(address => bool) private _adminStatuses;
   address[] private _recipients;
   mapping(address => bytes32[]) private _schedules;
+  uint256 private _scheduleCounter;
   mapping(bytes32 => ScheduleData) private _scheduleDatas;
 
   /// @dev Initialize a new vault
@@ -372,16 +373,21 @@ contract Coin98Vault is Ownable, Payable {
   }
 
   struct ScheduleData {
-    address token;
     uint256 timestamp;
-    uint256 amount;
+    address recipient;
+    address receivingToken;
+    uint256 receivingTokenAmount;
+    address sendingToken;
+    uint256 sendingTokenAmount;
   }
 
   event AdminAdded(address indexed admin);
   event AdminRemoved(address indexed admin);
   event RecipientAdded(address indexed recipient);
-  event Redeemed(address indexed recipient, address indexed token, uint256 value);
-  event ScheduleUpdated(bytes32 schedule, address indexed recipient, address indexed token, uint256 timestamp, uint256 amount);
+  event RecipientRemoved(address indexed recipient);
+  event Redeemed(bytes32 schedule, address indexed recipient, address indexed token, uint256 value);
+  event ScheduleUpdated(bytes32 schedule, ScheduleData scheduleData);
+  event ScheduleRemoved(bytes32 schedule);
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
 
   /// @dev Access Control, only owner and admins are able to access the specified function
@@ -409,6 +415,35 @@ contract Coin98Vault is Ownable, Payable {
       results[i] = _scheduleDatas[_schedules[recipient_][i]];
     }
     return results;
+  }
+
+  /// @dev internal function to remove scheduleData using its key
+  /// @param key_ key of the scheduleData
+  function _removeSchedule(bytes32 key_) internal {
+    address recipient = _scheduleDatas[key_].recipient;
+    require(recipient != address(0), "C98Vault: Invalid schedule data");
+
+    uint256 i;
+    for(i = 0; i < _schedules[recipient].length; i++) {
+      bytes32 scheduleKey = _schedules[recipient][i];
+      if(scheduleKey == key_) {
+        _schedules[recipient][i] = _schedules[recipient][_schedules[recipient].length - 1];
+        _schedules[recipient].pop();
+        delete _scheduleDatas[scheduleKey];
+        emit ScheduleRemoved(scheduleKey);
+        break;
+      }
+    }
+
+    if(_schedules[recipient].length == 0) {
+      for(i = 0; i < _recipients.length; i++) {
+        if(_recipients[i] == recipient) {
+          _recipients[i] = _recipients[_recipients.length - 1];
+          _recipients.pop();
+          emit RecipientRemoved(recipient);
+        }
+      }
+    }
   }
 
   /// @dev add/remove admin of the vault.
@@ -480,43 +515,48 @@ contract Coin98Vault is Ownable, Payable {
   }
 
   /// @dev set the schedule for a specified token
-  /// @param token_ address of the token for vesting
   /// @param timestamp_ timestamp in second. after this timestamp, the token will be available for redemption
+  /// @param receivingToken_ address of the token for vesting
+  /// @param sendingToken_ if *token* is diffrent from address(0), it's required for user to send a specified amount of this *token* to claim the vesting
   /// @param nRecipients_ list of recepient for a vesting batch
-  /// @param nAmounts_ amount of token to be redeemed for a recipient with the same index
+  /// @param receivingTokenAmounts_ amount of token to be redeemed for a recipient with the same index
+  /// @param sendingTokenAmounts_ amount of token to be sent for a recipient with the same index
   /// Only owner can use this function
-  function schedule(address token_, uint256 timestamp_, address[] memory nRecipients_, uint256[] memory nAmounts_) onlyAdmin public {
+  function schedule(uint256 timestamp_, address receivingToken_, address sendingToken_,
+    address[] memory nRecipients_, uint256[] memory receivingTokenAmounts_, uint256[] memory sendingTokenAmounts_
+  ) onlyAdmin public {
     require(nRecipients_.length != 0, "C98Vault: Empty arguments");
-    require(nAmounts_.length != 0, "C98Vault: Empty arguments");
-    require(nRecipients_.length == nAmounts_.length, "C98Vault: Invalid arguments");
+    require(receivingTokenAmounts_.length != 0, "C98Vault: Empty arguments");
+    require(nRecipients_.length == receivingTokenAmounts_.length, "C98Vault: Invalid arguments");
+
+    if(sendingToken_ != address(0)) {
+      require(nRecipients_.length == sendingTokenAmounts_.length, "C98Vault: Invalid arguments");
+    }
 
     uint256 i;
     for(i = 0; i < nRecipients_.length; i++) {
       address nRecipient = nRecipients_[i];
-      uint256 nAmount = nAmounts_[i];
+      uint256 receivingTokenAmount = receivingTokenAmounts_[i];
+      uint256 sendingTokenAmount = sendingTokenAmounts_[i];
 
       bool isRecipientExist = _schedules[nRecipient].length > 0;
-      bytes32 scheduleKey = keccak256(abi.encodePacked(nRecipient, token_, timestamp_));
+      _scheduleCounter++;
+      bytes32 scheduleKey = keccak256(abi.encodePacked(timestamp_, nRecipient, _scheduleCounter));
 
-      ScheduleData memory nSchedule;
-      nSchedule.token = token_;
-      nSchedule.timestamp = timestamp_;
-      nSchedule.amount = nAmount;
-
-      _scheduleDatas[scheduleKey] = nSchedule;
-      emit ScheduleUpdated(scheduleKey, nRecipient, token_, timestamp_, nAmount);
-
-      uint256 j;
-      uint256 found = 0;
-      for(j = 0; j < _schedules[nRecipient].length; j++) {
-        if(_schedules[nRecipient][j] == scheduleKey) {
-          found = 1;
-          break;
-        }
+      ScheduleData memory scheduleData;
+      scheduleData.recipient = nRecipient;
+      scheduleData.timestamp = timestamp_;
+      scheduleData.receivingToken = receivingToken_;
+      scheduleData.receivingTokenAmount = receivingTokenAmount;
+      if(sendingToken_ == address(0)) {
+        scheduleData.sendingToken = sendingToken_;
+        scheduleData.sendingTokenAmount = sendingTokenAmount;
       }
-      if(found == 0) {
-        _schedules[nRecipient].push(scheduleKey);
-      }
+
+      _scheduleDatas[scheduleKey] = scheduleData;
+      _schedules[nRecipient].push(scheduleKey);
+      emit ScheduleUpdated(scheduleKey, scheduleData);
+
       if(!isRecipientExist) {
         _recipients.push(nRecipient);
         emit RecipientAdded(nRecipient);
@@ -524,49 +564,60 @@ contract Coin98Vault is Ownable, Payable {
     }
   }
 
+  /// @dev update an existing schedule
+  /// @param key_ key of the scheduleData
+  /// @param timestamp_ timestamp in second. after this timestamp, the token will be available for redemption
+  /// @param receivingToken_ address of the token for vesting
+  /// @param sendingToken_ if *token* is diffrent from address(0), it's required for user to send a specified amount of this *token* to claim the vesting
+  /// @param recipient_ address of recipient
+  /// @param receivingTokenAmount_ amount of token to be redeemed for a recipient
+  /// @param sendingTokenAmount_ amount of token to be sent for a recipient
+  function updateSchedule(bytes32 key_, uint256 timestamp_, address receivingToken_, address sendingToken_,
+    address recipient_, uint256 receivingTokenAmount_, uint256 sendingTokenAmount_) onlyAdmin public {
+    require(recipient_ != address(0), "C98Vault: Invalid recipient");
+
+    ScheduleData memory scheduleData = _scheduleDatas[key_];
+    require(scheduleData.recipient != address(0), "C98Vault: Invalid schedule data");
+
+    scheduleData.timestamp = timestamp_;
+    scheduleData.recipient = recipient_;
+    scheduleData.receivingToken = receivingToken_;
+    scheduleData.receivingTokenAmount = receivingTokenAmount_;
+    scheduleData.sendingToken = sendingToken_;
+    scheduleData.sendingTokenAmount = sendingTokenAmount_;
+    _scheduleDatas[key_] = scheduleData;
+
+    emit ScheduleUpdated(key_, scheduleData);
+  }
+
+  /// @dev remove an existing schedule
+  function removeSchedule(bytes32 key_) onlyAdmin public {
+    _removeSchedule(key_);
+  }
+
   /// @dev claim the token user is eligible from schedule
   /// user must use the address whitelisted in schedule
-  function redeem(address token_) public payable {
+  function redeem(bytes32 key_) public payable {
     uint256 fee = IVaultConfig(_factory).fee();
     if(fee > 0) {
       require(_msgValue() == fee, "C98Vault: Invalid fee");
     }
 
-    uint256 totalAmount;
+    ScheduleData memory scheduleData = _scheduleDatas[key_];
+    require(scheduleData.recipient != address(0), "C98Vault: Invalid schedule");
+    require(scheduleData.recipient != _msgSender(), "C98Vault: Unauthorized");
+    require(scheduleData.timestamp >= block.timestamp, "C98Vault: Schedule locked");
+
     uint256 availableAmount;
-    if(token_ == address(0)) {
+    if(scheduleData.receivingToken == address(0)) {
       availableAmount = address(this).balance;
     } else {
-      availableAmount = IERC20(token_).balanceOf(address(this));
+      availableAmount = IERC20(scheduleData.receivingToken).balanceOf(address(this));
     }
 
-    uint256 blockTime = block.timestamp;
-    uint256 i;
-    for(i = 0; i < _schedules[_msgSender()].length;) {
-      bytes32 scheduleKey = _schedules[_msgSender()][i];
-      if(_scheduleDatas[scheduleKey].token == token_ && _scheduleDatas[scheduleKey].timestamp <= blockTime) {
-        if (totalAmount + _scheduleDatas[scheduleKey].amount > availableAmount) {
-          break;
-        }
-        totalAmount += _scheduleDatas[scheduleKey].amount;
-        _schedules[_msgSender()][i] = _schedules[_msgSender()][_schedules[_msgSender()].length - 1];
-        _schedules[_msgSender()].pop();
-        delete _scheduleDatas[scheduleKey];
-        continue;
-      }
-      i++;
-    }
+    require(scheduleData.receivingTokenAmount <= availableAmount, "C98Vault: Insufficient receiving token");
 
-    require(totalAmount > 0, "C98Vault: Nothing to redeem");
-
-    if(_schedules[_msgSender()].length == 0) {
-      for(i = 0; i < _recipients.length; i++) {
-        if(_recipients[i] == _msgSender()) {
-          _recipients[i] = _recipients[_recipients.length - 1];
-          _recipients.pop();
-        }
-      }
-    }
+    _removeSchedule(key_);
 
     if(fee > 0) {
       uint256 reward = IVaultConfig(_factory).ownerReward();
@@ -574,13 +625,16 @@ contract Coin98Vault is Ownable, Payable {
       (bool success, bytes memory data) = _factory.call{value:finalFee}("");
       require(success, "C98Vault: Unable to charge fee");
     }
-    if(token_ == address(0)) {
-      _msgSender().call{value:totalAmount}("");
+    if(scheduleData.sendingToken != address(0)) {
+      IERC20(scheduleData.sendingToken).transferFrom(_msgSender(), address(this), scheduleData.sendingTokenAmount);
+    }
+    if(scheduleData.receivingToken == address(0)) {
+      _msgSender().call{value:scheduleData.receivingTokenAmount}("");
     } else {
-      IERC20(token_).transfer(_msgSender(), totalAmount);
+      IERC20(scheduleData.receivingToken).transfer(_msgSender(), scheduleData.receivingTokenAmount);
     }
 
-    emit Redeemed(_msgSender(), token_, totalAmount);
+    emit Redeemed(key_, _msgSender(), scheduleData.receivingToken, scheduleData.receivingTokenAmount);
   }
 }
 
