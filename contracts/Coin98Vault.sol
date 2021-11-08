@@ -588,6 +588,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
 
   uint256 private _fee;
   uint256 private _ownerReward;
+  address[] private _vaults;
 
   /// @dev Emit `FeeUpdated` when a new vault is created
   event Created(address indexed vault);
@@ -608,11 +609,16 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
     return _ownerReward;
   }
 
+  /// @dev get list of vaults initialized through this factory
+  function vaults() external view returns (address[] memory) {
+    return _vaults;
+  }
+
   /// @dev create a new vault
   /// Address calling this function will be assigned as owner of the newly created vault
   function createVault() external returns (Coin98Vault vault) {
     vault = new Coin98Vault(address(this));
-
+    _vaults.push(address(vault));
     emit Created(address(vault));
   }
 
