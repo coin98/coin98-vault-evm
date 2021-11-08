@@ -446,35 +446,46 @@ contract Coin98Vault is Ownable, Payable {
     }
   }
 
-  /// @dev add/remove admin of the vault.
-  /// @param nAdmins_ list to address to update
-  /// @param nStatuses_ address with same index will be added if true, or remove if false
-  /// admins will have access to all tokens in the vault, and can define vesting schedule
-  function setAdmins(address[] memory nAdmins_, bool[] memory nStatuses_) public onlyOwner {
-    require(nAdmins_.length != 0, "C98Vault: Empty arguments");
-    require(nStatuses_.length != 0, "C98Vault: Empty arguments");
-    require(nAdmins_.length == nStatuses_.length, "C98Vault: Invalid arguments");
-
-    uint256 i;
-    for(i = 0; i < nAdmins_.length; i++) {
-      address nAdmin = nAdmins_[i];
-      if(nStatuses_[i]) {
-        _admins.push(nAdmin);
-        _adminStatuses[nAdmin] = nStatuses_[i];
-        emit AdminAdded(nAdmin);
-      } else {
-        uint256 j;
-        for(j = 0; j < _admins.length; j++) {
-          if(_admins[j] == nAdmin) {
-            _admins[j] = _admins[_admins.length - 1];
-            _admins.pop();
-            delete _adminStatuses[nAdmin];
-            emit AdminRemoved(nAdmin);
-            break;
-          }
-        }
-      }
+  /// @dev claim the token user is eligible from schedule
+  /// user must use the address whitelisted in schedule
+  function redeem(bytes32 key_) public payable {
+    uint256 fee = IVaultConfig(_factory).fee();
+    if(fee > 0) {
+      require(_msgValue() == fee, "C98Vault: Invalid fee");
     }
+
+    ScheduleData memory scheduleData = _scheduleDatas[key_];
+    require(scheduleData.recipient != address(0), "C98Vault: Invalid schedule");
+    require(scheduleData.recipient != _msgSender(), "C98Vault: Unauthorized");
+    require(scheduleData.timestamp >= block.timestamp, "C98Vault: Schedule locked");
+
+    uint256 availableAmount;
+    if(scheduleData.receivingToken == address(0)) {
+      availableAmount = address(this).balance;
+    } else {
+      availableAmount = IERC20(scheduleData.receivingToken).balanceOf(address(this));
+    }
+
+    require(scheduleData.receivingTokenAmount <= availableAmount, "C98Vault: Insufficient receiving token");
+
+    _removeSchedule(key_);
+
+    if(fee > 0) {
+      uint256 reward = IVaultConfig(_factory).ownerReward();
+      uint256 finalFee = fee - reward;
+      (bool success, bytes memory data) = _factory.call{value:finalFee}("");
+      require(success, "C98Vault: Unable to charge fee");
+    }
+    if(scheduleData.sendingToken != address(0)) {
+      IERC20(scheduleData.sendingToken).transferFrom(_msgSender(), address(this), scheduleData.sendingTokenAmount);
+    }
+    if(scheduleData.receivingToken == address(0)) {
+      _msgSender().call{value:scheduleData.receivingTokenAmount}("");
+    } else {
+      IERC20(scheduleData.receivingToken).transfer(_msgSender(), scheduleData.receivingTokenAmount);
+    }
+
+    emit Redeemed(key_, _msgSender(), scheduleData.receivingToken, scheduleData.receivingTokenAmount);
   }
 
   /// @dev withdraw the token in the vault, no limit
@@ -595,46 +606,35 @@ contract Coin98Vault is Ownable, Payable {
     _removeSchedule(key_);
   }
 
-  /// @dev claim the token user is eligible from schedule
-  /// user must use the address whitelisted in schedule
-  function redeem(bytes32 key_) public payable {
-    uint256 fee = IVaultConfig(_factory).fee();
-    if(fee > 0) {
-      require(_msgValue() == fee, "C98Vault: Invalid fee");
+  /// @dev add/remove admin of the vault.
+  /// @param nAdmins_ list to address to update
+  /// @param nStatuses_ address with same index will be added if true, or remove if false
+  /// admins will have access to all tokens in the vault, and can define vesting schedule
+  function setAdmins(address[] memory nAdmins_, bool[] memory nStatuses_) public onlyOwner {
+    require(nAdmins_.length != 0, "C98Vault: Empty arguments");
+    require(nStatuses_.length != 0, "C98Vault: Empty arguments");
+    require(nAdmins_.length == nStatuses_.length, "C98Vault: Invalid arguments");
+
+    uint256 i;
+    for(i = 0; i < nAdmins_.length; i++) {
+      address nAdmin = nAdmins_[i];
+      if(nStatuses_[i]) {
+        _admins.push(nAdmin);
+        _adminStatuses[nAdmin] = nStatuses_[i];
+        emit AdminAdded(nAdmin);
+      } else {
+        uint256 j;
+        for(j = 0; j < _admins.length; j++) {
+          if(_admins[j] == nAdmin) {
+            _admins[j] = _admins[_admins.length - 1];
+            _admins.pop();
+            delete _adminStatuses[nAdmin];
+            emit AdminRemoved(nAdmin);
+            break;
+          }
+        }
+      }
     }
-
-    ScheduleData memory scheduleData = _scheduleDatas[key_];
-    require(scheduleData.recipient != address(0), "C98Vault: Invalid schedule");
-    require(scheduleData.recipient != _msgSender(), "C98Vault: Unauthorized");
-    require(scheduleData.timestamp >= block.timestamp, "C98Vault: Schedule locked");
-
-    uint256 availableAmount;
-    if(scheduleData.receivingToken == address(0)) {
-      availableAmount = address(this).balance;
-    } else {
-      availableAmount = IERC20(scheduleData.receivingToken).balanceOf(address(this));
-    }
-
-    require(scheduleData.receivingTokenAmount <= availableAmount, "C98Vault: Insufficient receiving token");
-
-    _removeSchedule(key_);
-
-    if(fee > 0) {
-      uint256 reward = IVaultConfig(_factory).ownerReward();
-      uint256 finalFee = fee - reward;
-      (bool success, bytes memory data) = _factory.call{value:finalFee}("");
-      require(success, "C98Vault: Unable to charge fee");
-    }
-    if(scheduleData.sendingToken != address(0)) {
-      IERC20(scheduleData.sendingToken).transferFrom(_msgSender(), address(this), scheduleData.sendingTokenAmount);
-    }
-    if(scheduleData.receivingToken == address(0)) {
-      _msgSender().call{value:scheduleData.receivingTokenAmount}("");
-    } else {
-      IERC20(scheduleData.receivingToken).transfer(_msgSender(), scheduleData.receivingTokenAmount);
-    }
-
-    emit Redeemed(key_, _msgSender(), scheduleData.receivingToken, scheduleData.receivingTokenAmount);
   }
 }
 
