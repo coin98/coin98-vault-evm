@@ -408,13 +408,13 @@ contract Coin98Vault is Ownable, Payable {
 
   /// @dev returns vesting schedule of a particular recipent
   /// @param recipient_ address of the recipent
-  function schedules(address recipient_) public view returns (ScheduleData[] memory) {
-    ScheduleData[] memory results = new ScheduleData[](_schedules[recipient_].length);
+  function schedules(address recipient_) public view returns (bytes32[] memory, ScheduleData[] memory) {
+    ScheduleData[] memory data = new ScheduleData[](_schedules[recipient_].length);
     uint256 i;
     for(i = 0; i < _schedules[recipient_].length; i++) {
-      results[i] = _scheduleDatas[_schedules[recipient_][i]];
+      data[i] = _scheduleDatas[_schedules[recipient_][i]];
     }
-    return results;
+    return (_schedules[recipient_], data);
   }
 
   /// @dev internal function to remove scheduleData using its key
@@ -559,7 +559,7 @@ contract Coin98Vault is Ownable, Payable {
       scheduleData.timestamp = timestamp_;
       scheduleData.receivingToken = receivingToken_;
       scheduleData.receivingTokenAmount = receivingTokenAmount;
-      if(sendingToken_ == address(0)) {
+      if(sendingToken_ != address(0)) {
         scheduleData.sendingToken = sendingToken_;
         scheduleData.sendingTokenAmount = sendingTokenAmount;
       }
@@ -619,9 +619,11 @@ contract Coin98Vault is Ownable, Payable {
     for(i = 0; i < nAdmins_.length; i++) {
       address nAdmin = nAdmins_[i];
       if(nStatuses_[i]) {
-        _admins.push(nAdmin);
-        _adminStatuses[nAdmin] = nStatuses_[i];
-        emit AdminAdded(nAdmin);
+        if(!_adminStatuses[nAdmin]) {
+          _admins.push(nAdmin);
+          _adminStatuses[nAdmin] = nStatuses_[i];
+          emit AdminAdded(nAdmin);
+        }
       } else {
         uint256 j;
         for(j = 0; j < _admins.length; j++) {
