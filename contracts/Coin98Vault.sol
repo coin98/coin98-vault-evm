@@ -373,6 +373,7 @@ contract Coin98Vault is Ownable, Payable {
   }
 
   struct ScheduleData {
+    uint256 eventId;
     uint256 timestamp;
     address recipient;
     address receivingToken;
@@ -526,6 +527,7 @@ contract Coin98Vault is Ownable, Payable {
   }
 
   /// @dev set the schedule for a specified token
+  /// @param eventId_ id of the event to let user know why this vesting exsit
   /// @param timestamp_ timestamp in second. after this timestamp, the token will be available for redemption
   /// @param receivingToken_ address of the token for vesting
   /// @param sendingToken_ if *token* is diffrent from address(0), it's required for user to send a specified amount of this *token* to claim the vesting
@@ -533,7 +535,7 @@ contract Coin98Vault is Ownable, Payable {
   /// @param receivingTokenAmounts_ amount of token to be redeemed for a recipient with the same index
   /// @param sendingTokenAmounts_ amount of token to be sent for a recipient with the same index
   /// Only owner can use this function
-  function schedule(uint256 timestamp_, address receivingToken_, address sendingToken_,
+  function schedule(uint256 eventId_, uint256 timestamp_, address receivingToken_, address sendingToken_,
     address[] memory nRecipients_, uint256[] memory receivingTokenAmounts_, uint256[] memory sendingTokenAmounts_
   ) onlyAdmin public {
     require(nRecipients_.length != 0, "C98Vault: Empty arguments");
@@ -555,6 +557,7 @@ contract Coin98Vault is Ownable, Payable {
       bytes32 scheduleKey = keccak256(abi.encodePacked(timestamp_, nRecipient, _scheduleCounter));
 
       ScheduleData memory scheduleData;
+      scheduleData.eventId = eventId_;
       scheduleData.recipient = nRecipient;
       scheduleData.timestamp = timestamp_;
       scheduleData.receivingToken = receivingToken_;
@@ -577,19 +580,21 @@ contract Coin98Vault is Ownable, Payable {
 
   /// @dev update an existing schedule
   /// @param key_ key of the scheduleData
+  /// @param eventId_ id of the event to let user know why this vesting exsit
   /// @param timestamp_ timestamp in second. after this timestamp, the token will be available for redemption
   /// @param receivingToken_ address of the token for vesting
   /// @param sendingToken_ if *token* is diffrent from address(0), it's required for user to send a specified amount of this *token* to claim the vesting
   /// @param recipient_ address of recipient
   /// @param receivingTokenAmount_ amount of token to be redeemed for a recipient
   /// @param sendingTokenAmount_ amount of token to be sent for a recipient
-  function updateSchedule(bytes32 key_, uint256 timestamp_, address receivingToken_, address sendingToken_,
+  function updateSchedule(bytes32 key_, uint256 eventId_, uint256 timestamp_, address receivingToken_, address sendingToken_,
     address recipient_, uint256 receivingTokenAmount_, uint256 sendingTokenAmount_) onlyAdmin public {
     require(recipient_ != address(0), "C98Vault: Invalid recipient");
 
-    ScheduleData memory scheduleData = _scheduleDatas[key_];
+    ScheduleData storage scheduleData = _scheduleDatas[key_];
     require(scheduleData.recipient != address(0), "C98Vault: Invalid schedule data");
 
+    scheduleData.eventId = eventId_;
     scheduleData.timestamp = timestamp_;
     scheduleData.recipient = recipient_;
     scheduleData.receivingToken = receivingToken_;
