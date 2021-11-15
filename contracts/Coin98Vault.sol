@@ -457,8 +457,8 @@ contract Coin98Vault is Ownable, Payable {
 
     ScheduleData memory scheduleData = _scheduleDatas[key_];
     require(scheduleData.recipient != address(0), "C98Vault: Invalid schedule");
-    require(scheduleData.recipient != _msgSender(), "C98Vault: Unauthorized");
-    require(scheduleData.timestamp >= block.timestamp, "C98Vault: Schedule locked");
+    require(scheduleData.recipient == _msgSender(), "C98Vault: Unauthorized");
+    require(scheduleData.timestamp <= block.timestamp, "C98Vault: Schedule locked");
 
     uint256 availableAmount;
     if(scheduleData.receivingToken == address(0)) {
