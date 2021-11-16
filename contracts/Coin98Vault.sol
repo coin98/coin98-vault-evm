@@ -237,6 +237,7 @@ interface IERC721 is IERC165 {
 interface IVaultConfig {
 
   function fee() external view returns (uint256);
+  function gasLimit() external view returns (uint256);
   function ownerReward() external view returns (uint256);
 }
 
@@ -451,6 +452,7 @@ contract Coin98Vault is Ownable, Payable {
   /// user must use the address whitelisted in schedule
   function redeem(bytes32 key_) public payable {
     uint256 fee = IVaultConfig(_factory).fee();
+    uint256 gasLimit = IVaultConfig(_factory).gasLimit();
     if(fee > 0) {
       require(_msgValue() == fee, "C98Vault: Invalid fee");
     }
@@ -474,14 +476,14 @@ contract Coin98Vault is Ownable, Payable {
     if(fee > 0) {
       uint256 reward = IVaultConfig(_factory).ownerReward();
       uint256 finalFee = fee - reward;
-      (bool success, bytes memory data) = _factory.call{value:finalFee}("");
+      (bool success, bytes memory data) = _factory.call{value:finalFee, gas:gasLimit}("");
       require(success, "C98Vault: Unable to charge fee");
     }
     if(scheduleData.sendingToken != address(0)) {
       IERC20(scheduleData.sendingToken).transferFrom(_msgSender(), address(this), scheduleData.sendingTokenAmount);
     }
     if(scheduleData.receivingToken == address(0)) {
-      _msgSender().call{value:scheduleData.receivingTokenAmount}("");
+      _msgSender().call{value:scheduleData.receivingTokenAmount, gas:gasLimit}("");
     } else {
       IERC20(scheduleData.receivingToken).transfer(_msgSender(), scheduleData.receivingTokenAmount);
     }
@@ -505,8 +507,9 @@ contract Coin98Vault is Ownable, Payable {
 
     require(amount_ <= availableAmount, "C98Vault: Not enough balance");
 
+    uint256 gasLimit = IVaultConfig(_factory).gasLimit();
     if(token_ == address(0)) {
-      destination_.call{value:amount_}("");
+      destination_.call{value:amount_, gas:gasLimit}("");
     } else {
       IERC20(token_).transfer(destination_, amount_);
     }
@@ -648,8 +651,13 @@ contract Coin98Vault is Ownable, Payable {
 contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
 
   uint256 private _fee;
+  uint256 private _gasLimit;
   uint256 private _ownerReward;
   address[] private _vaults;
+
+  constructor () {
+    _gasLimit = 9000;
+  }
 
   /// @dev Emit `FeeUpdated` when a new vault is created
   event Created(address indexed vault);
@@ -663,6 +671,11 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
   /// @dev get current protocol fee in gas token
   function fee() override external view returns (uint256) {
     return _fee;
+  }
+
+  /// @dev limit gas to send native token
+  function gasLimit() override external view returns (uint256) {
+    return _gasLimit;
   }
 
   /// @dev get current owner reward in gas token
@@ -681,6 +694,10 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
     vault = new Coin98Vault(address(this));
     _vaults.push(address(vault));
     emit Created(address(vault));
+  }
+
+  function setGasLimit(uint256 limit_) public onlyOwner {
+    _gasLimit = limit_;
   }
 
   /// @dev change protocol fee
@@ -713,7 +730,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
     require(amount_ <= availableAmount, "C98Vault: Not enough balance");
 
     if(token_ == address(0)) {
-      destination_.call{value:amount_}("");
+      destination_.call{value:amount_, gas:_gasLimit}("");
     } else {
       IERC20(token_).transfer(destination_, amount_);
     }
