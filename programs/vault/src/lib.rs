@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 
+declare_id!("VT1KksX3ZybQBZNU66FrnuX5MrWZit7Pj1hB9uVXwNL");
+
 #[program]
 mod coin98_vault {
   use super::*;
@@ -181,9 +183,8 @@ pub struct CreateVaultContext<'info> {
   #[account(init, seeds = [
     &[93, 85, 196,  21, 227, 86, 221, 123],
     &*vault_path,
-    &[vault_nonce]
-  ], payer = payer, space = 589)]
-  pub vault: ProgramAccount<'info, Vault>,
+  ], bump = vault_nonce, payer = payer, space = 589)]
+  pub vault: Account<'info, Vault>,
 
   pub rent: Sysvar<'info, Rent>,
 
@@ -193,13 +194,12 @@ pub struct CreateVaultContext<'info> {
 #[derive(Accounts)]
 pub struct WithdrawSolContext<'info> {
 
-  pub vault: ProgramAccount<'info, Vault>,
+  pub vault: Account<'info, Vault>,
 
   #[account(mut, seeds = [
     &[2, 151, 229, 53, 244,  77, 229,  7],
     vault.to_account_info().key.as_ref(),
-    &[vault.nonce],
-  ])]
+  ], bump = vault.nonce)]
   pub vault_signer: AccountInfo<'info>,
 
   #[account(signer)]
@@ -214,13 +214,12 @@ pub struct WithdrawSolContext<'info> {
 #[derive(Accounts)]
 pub struct WithdrawTokenContext<'info> {
 
-  pub vault: ProgramAccount<'info, Vault>,
+  pub vault: Account<'info, Vault>,
 
   #[account(seeds = [
     &[2, 151, 229, 53, 244,  77, 229,  7],
     vault.to_account_info().key.as_ref(),
-    &[vault.nonce],
-  ])]
+  ], bump = vault.nonce)]
   pub vault_signer: AccountInfo<'info>,
 
   #[account(signer)]
@@ -239,7 +238,7 @@ pub struct WithdrawTokenContext<'info> {
 pub struct TransferOwnershipContext<'info> {
 
   #[account(mut)]
-  pub vault: ProgramAccount<'info, Vault>,
+  pub vault: Account<'info, Vault>,
 
   #[account(signer)]
   pub owner: AccountInfo<'info>,
@@ -249,7 +248,7 @@ pub struct TransferOwnershipContext<'info> {
 pub struct AcceptOwnershipContext<'info> {
 
   #[account(mut)]
-  pub vault: ProgramAccount<'info, Vault>,
+  pub vault: Account<'info, Vault>,
 
   #[account(signer)]
   pub new_owner: AccountInfo<'info>,
@@ -259,14 +258,13 @@ pub struct AcceptOwnershipContext<'info> {
 pub struct ChangeMembersContext<'info> {
 
   #[account(mut)]
-  pub vault: ProgramAccount<'info, Vault>,
+  pub vault: Account<'info, Vault>,
 
   #[account(signer)]
   pub owner: AccountInfo<'info>,
 }
 
-#[associated]
-#[derive(Default)]
+#[account]
 pub struct Vault {
   pub nonce: u8,
   pub owner: Pubkey,
