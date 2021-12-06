@@ -412,6 +412,11 @@ contract Coin98Vault is Ownable, Payable {
     return _eventDatas[eventId_];
   }
 
+  /// @dev return current schedule index, next schedule ID will be (schedule index + 1)
+  function scheduleIndex() public view returns (uint256) {
+    return _scheduleIndex;
+  }
+
   /// @dev returns detail of a schedule
   /// @param scheduleId_ address of the recipent
   function scheduleInfo(uint256 scheduleId_) public view returns (ScheduleData memory, EventData memory) {
@@ -504,8 +509,7 @@ contract Coin98Vault is Ownable, Payable {
   /// @param nRecipients_ list of recepient for a vesting batch
   /// @param nAmounts_ amount of token to be redeemed for a recipient with the same index
   /// Only owner can use this function
-  function schedule(uint256 eventId_, address[] memory nRecipients_, uint256[] memory nAmounts_
-  ) onlyAdmin public {
+  function schedule(uint256 eventId_, address[] memory nRecipients_, uint256[] memory nAmounts_) public onlyAdmin {
     require(nRecipients_.length != 0, "C98Vault: Empty arguments");
     require(nAmounts_.length != 0, "C98Vault: Empty arguments");
     require(nRecipients_.length == nAmounts_.length, "C98Vault: Invalid arguments");
@@ -514,8 +518,9 @@ contract Coin98Vault is Ownable, Payable {
     for(i = 0; i < nRecipients_.length; i++) {
       address nRecipient = nRecipients_[i];
       uint256 amount = nAmounts_[i];
-      _scheduleIndex++;
+      require(nRecipient != address(0), "C98Vault: recipient is zero address");
 
+      _scheduleIndex++;
       ScheduleData memory scheduleData;
       scheduleData.eventId = eventId_;
       scheduleData.recipient = nRecipient;
@@ -531,16 +536,17 @@ contract Coin98Vault is Ownable, Payable {
   /// @dev enable/disable a particular schedule
   /// @param scheduleId_ schedule ID
   /// @param isActive_ zero to inactive, any number to active
-  function setScheduleStatus(uint256 scheduleId_, uint8 isActive_) public onlyOwner {
+  function setScheduleStatus(uint256 scheduleId_, uint8 isActive_) public onlyAdmin {
     require(_scheduleDatas[scheduleId_].recipient != address(0), "C98Vault: Invalid schedule");
-    require(_scheduleDatas[scheduleId_].isRedeemed != 0, "C98Vault: Redeemed");
+    require(_scheduleDatas[scheduleId_].isRedeemed == 0, "C98Vault: Redeemed");
     _scheduleDatas[scheduleId_].isActive = isActive_;
 
     emit ScheduleUpdated(scheduleId_, isActive_);
   }
 
-  function createEvent(uint256 eventId_, uint256 timestamp_, address token_) public onlyOwner {
-    require(_eventDatas[eventId_].timestamp != 0, "C98Vault: Invalid event");
+  function createEvent(uint256 eventId_, uint256 timestamp_, address token_) public onlyAdmin {
+    require(_eventDatas[eventId_].timestamp == 0, "C98Vault: Event existed");
+    require(timestamp_ != 0, "C98Vault: Invalid timestamp");
     _eventDatas[eventId_].timestamp = timestamp_;
     _eventDatas[eventId_].token = token_;
     _eventDatas[eventId_].isActive = 1;
@@ -551,7 +557,7 @@ contract Coin98Vault is Ownable, Payable {
   /// @dev enable/disable a particular event
   /// @param eventId_ event ID
   /// @param isActive_ zero to inactive, any number to active
-  function setEventStatus(uint256 eventId_, uint8 isActive_) public onlyOwner {
+  function setEventStatus(uint256 eventId_, uint8 isActive_) public onlyAdmin {
     require(_eventDatas[eventId_].timestamp != 0, "C98Vault: Invalid event");
     _eventDatas[eventId_].isActive = isActive_;
 
