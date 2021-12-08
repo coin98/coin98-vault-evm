@@ -287,10 +287,9 @@ abstract contract Ownable is Context {
   /**
    * @dev Initializes the contract setting the deployer as the initial owner.
    */
-  constructor () {
-    address msgSender = _msgSender();
-    _owner = msgSender;
-    emit OwnershipTransferred(address(0), msgSender);
+  constructor (address owner_) {
+    _owner = owner_;
+    emit OwnershipTransferred(address(0), owner_);
   }
 
   /**
@@ -368,7 +367,8 @@ contract Coin98Vault is Ownable, Payable {
 
   /// @dev Initialize a new vault
   /// @param factory_ Back reference to the factory initialized this vault for global configuration
-  constructor(address factory_) {
+  /// @param owner_ Owner of this vault
+  constructor(address factory_, address owner_) Ownable(owner_) {
     _factory = factory_;
   }
 
@@ -410,6 +410,11 @@ contract Coin98Vault is Ownable, Payable {
   /// @param eventId_ ID of the event
   function eventInfo(uint256 eventId_) public view returns (EventData memory) {
     return _eventDatas[eventId_];
+  }
+
+  /// @dev address of the factory
+  function factory() public view returns (address) {
+    return _factory;
   }
 
   /// @dev return current schedule index, next schedule ID will be (schedule index + 1)
@@ -515,22 +520,24 @@ contract Coin98Vault is Ownable, Payable {
     require(nRecipients_.length == nAmounts_.length, "C98Vault: Invalid arguments");
 
     uint256 i;
+    uint256 index = _scheduleIndex;
     for(i = 0; i < nRecipients_.length; i++) {
       address nRecipient = nRecipients_[i];
       uint256 amount = nAmounts_[i];
       require(nRecipient != address(0), "C98Vault: recipient is zero address");
 
-      _scheduleIndex++;
+      index++;
       ScheduleData memory scheduleData;
       scheduleData.eventId = eventId_;
       scheduleData.recipient = nRecipient;
       scheduleData.amount = amount;
       scheduleData.isActive = 1;
 
-      _scheduleDatas[_scheduleIndex] = scheduleData;
+      _scheduleDatas[index] = scheduleData;
 
-      emit ScheduleCreated(_scheduleIndex, scheduleData);
+      emit ScheduleCreated(index, scheduleData);
     }
+    _scheduleIndex = index;
   }
 
   /// @dev enable/disable a particular schedule
@@ -605,7 +612,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
   uint256 private _ownerReward;
   address[] private _vaults;
 
-  constructor () {
+  constructor () Ownable(_msgSender()) {
     _gasLimit = 9000;
   }
 
@@ -639,9 +646,9 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
   }
 
   /// @dev create a new vault
-  /// Address calling this function will be assigned as owner of the newly created vault
-  function createVault() external returns (Coin98Vault vault) {
-    vault = new Coin98Vault(address(this));
+  /// @param owner_ Owner of newly created vault
+  function createVault(address owner_) external returns (Coin98Vault vault) {
+    vault = new Coin98Vault(address(this), owner_);
     _vaults.push(address(vault));
     emit Created(address(vault));
   }
