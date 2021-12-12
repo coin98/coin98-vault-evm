@@ -7,11 +7,6 @@ pragma solidity ^0.8.0;
 interface IERC20 {
 
   /**
-    * @dev Returns the amount of tokens in existence.
-    */
-  function totalSupply() external view returns (uint256);
-
-  /**
     * @dev Returns the amount of tokens owned by `account`.
     */
   function balanceOf(address account) external view returns (uint256);
@@ -26,31 +21,6 @@ interface IERC20 {
   function transfer(address recipient, uint256 amount) external returns (bool);
 
   /**
-    * @dev Returns the remaining number of tokens that `spender` will be
-    * allowed to spend on behalf of `owner` through {transferFrom}. This is
-    * zero by default.
-    *
-    * This value changes when {approve} or {transferFrom} are called.
-    */
-  function allowance(address owner, address spender) external view returns (uint256);
-
-  /**
-    * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
-    *
-    * Returns a boolean value indicating whether the operation succeeded.
-    *
-    * IMPORTANT: Beware that changing an allowance with this method brings the risk
-    * that someone may use both the old and the new allowance by unfortunate
-    * transaction ordering. One possible solution to mitigate this race
-    * condition is to first reduce the spender's allowance to 0 and set the
-    * desired value afterwards:
-    * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-    *
-    * Emits an {Approval} event.
-    */
-  function approve(address spender, uint256 amount) external returns (bool);
-
-  /**
     * @dev Moves `amount` tokens from `sender` to `recipient` using the
     * allowance mechanism. `amount` is then deducted from the caller's
     * allowance.
@@ -60,95 +30,12 @@ interface IERC20 {
     * Emits a {Transfer} event.
     */
   function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-
-  /**
-    * @dev Emitted when `value` tokens are moved from one account (`from`) to
-    * another (`to`).
-    *
-    * Note that `value` may be zero.
-    */
-  event Transfer(address indexed from, address indexed to, uint256 value);
-
-  /**
-    * @dev Emitted when the allowance of a `spender` for an `owner` is set by
-    * a call to {approve}. `value` is the new allowance.
-    */
-  event Approval(address indexed owner, address indexed spender, uint256 value);
-}
-
-/**
- * @dev Interface of the ERC165 standard, as defined in the
- * https://eips.ethereum.org/EIPS/eip-165[EIP].
- *
- * Implementers can declare support of contract interfaces, which can then be
- * queried by others ({ERC165Checker}).
- *
- * For an implementation, see {ERC165}.
- */
-interface IERC165 {
-  /**
-    * @dev Returns true if this contract implements the interface defined by
-    * `interfaceId`. See the corresponding
-    * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
-    * to learn more about how these ids are created.
-    *
-    * This function call must use less than 30 000 gas.
-    */
-  function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
 /**
  * @dev Required interface of an ERC721 compliant contract.
  */
-interface IERC721 is IERC165 {
-  /**
-    * @dev Emitted when `tokenId` token is transferred from `from` to `to`.
-    */
-  event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
-
-  /**
-    * @dev Emitted when `owner` enables `approved` to manage the `tokenId` token.
-    */
-  event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
-
-  /**
-    * @dev Emitted when `owner` enables or disables (`approved`) `operator` to manage all of its assets.
-    */
-  event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
-
-  /**
-    * @dev Returns the number of tokens in ``owner``'s account.
-    */
-  function balanceOf(address owner) external view returns (uint256 balance);
-
-  /**
-    * @dev Returns the owner of the `tokenId` token.
-    *
-    * Requirements:
-    *
-    * - `tokenId` must exist.
-    */
-  function ownerOf(uint256 tokenId) external view returns (address owner);
-
-  /**
-    * @dev Safely transfers `tokenId` token from `from` to `to`, checking first that contract recipients
-    * are aware of the ERC721 protocol to prevent tokens from being forever locked.
-    *
-    * Requirements:
-    *
-    * - `from` cannot be the zero address.
-    * - `to` cannot be the zero address.
-    * - `tokenId` token must exist and be owned by `from`.
-    * - If the caller is not `from`, it must be have been allowed to move this token by either {approve} or {setApprovalForAll}.
-    * - If `to` refers to a smart contract, it must implement {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
-    *
-    * Emits a {Transfer} event.
-    */
-  function safeTransferFrom(
-    address from,
-    address to,
-    uint256 tokenId
-  ) external;
+interface IERC721 {
 
   /**
     * @dev Transfers `tokenId` token from `from` to `to`.
@@ -168,69 +55,6 @@ interface IERC721 is IERC165 {
     address from,
     address to,
     uint256 tokenId
-  ) external;
-
-  /**
-    * @dev Gives permission to `to` to transfer `tokenId` token to another account.
-    * The approval is cleared when the token is transferred.
-    *
-    * Only a single account can be approved at a time, so approving the zero address clears previous approvals.
-    *
-    * Requirements:
-    *
-    * - The caller must own the token or be an approved operator.
-    * - `tokenId` must exist.
-    *
-    * Emits an {Approval} event.
-    */
-  function approve(address to, uint256 tokenId) external;
-
-  /**
-    * @dev Returns the account approved for `tokenId` token.
-    *
-    * Requirements:
-    *
-    * - `tokenId` must exist.
-    */
-  function getApproved(uint256 tokenId) external view returns (address operator);
-
-  /**
-    * @dev Approve or remove `operator` as an operator for the caller.
-    * Operators can call {transferFrom} or {safeTransferFrom} for any token owned by the caller.
-    *
-    * Requirements:
-    *
-    * - The `operator` cannot be the caller.
-    *
-    * Emits an {ApprovalForAll} event.
-    */
-  function setApprovalForAll(address operator, bool _approved) external;
-
-  /**
-    * @dev Returns if the `operator` is allowed to manage all of the assets of `owner`.
-    *
-    * See {setApprovalForAll}
-    */
-  function isApprovedForAll(address owner, address operator) external view returns (bool);
-
-  /**
-    * @dev Safely transfers `tokenId` token from `from` to `to`.
-    *
-    * Requirements:
-    *
-    * - `from` cannot be the zero address.
-    * - `to` cannot be the zero address.
-    * - `tokenId` token must exist and be owned by `from`.
-    * - If the caller is not `from`, it must be approved to move this token by either {approve} or {setApprovalForAll}.
-    * - If `to` refers to a smart contract, it must implement {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
-    *
-    * Emits a {Transfer} event.
-    */
-  function safeTransferFrom(
-    address from,
-    address to,
-    uint256 tokenId,
-    bytes calldata data
   ) external;
 }
 
@@ -354,6 +178,36 @@ abstract contract Payable {
 }
 
 /**
+ * @dev These functions deal with verification of Merkle trees (hash trees),
+ */
+library MerkleProof {
+  /**
+    * @dev Returns true if a `leaf` can be proved to be a part of a Merkle tree
+    * defined by `root`. For this, a `proof` must be provided, containing
+    * sibling hashes on the branch from the leaf to the root of the tree. Each
+    * pair of leaves and each pair of pre-images are assumed to be sorted.
+    */
+  function verify(bytes32[] memory proof, bytes32 root, bytes32 leaf) internal pure returns (bool) {
+    bytes32 computedHash = leaf;
+
+    for (uint256 i = 0; i < proof.length; i++) {
+      bytes32 proofElement = proof[i];
+
+      if (computedHash <= proofElement) {
+        // Hash(current computed hash + current element of the proof)
+        computedHash = keccak256(abi.encodePacked(computedHash, proofElement));
+      } else {
+        // Hash(current element of the proof + current computed hash)
+        computedHash = keccak256(abi.encodePacked(proofElement, computedHash));
+      }
+    }
+
+    // Check if the computed hash (root) is equal to the provided root
+    return computedHash == root;
+  }
+}
+
+/**
  * @dev Coin98Vault contract to enable vesting funds to investors
  */
 contract Coin98Vault is Ownable, Payable {
@@ -362,8 +216,7 @@ contract Coin98Vault is Ownable, Payable {
   address[] private _admins;
   mapping(address => bool) private _adminStatuses;
   mapping(uint256 => EventData) private _eventDatas;
-  uint256 private _scheduleIndex;
-  mapping(uint256 => ScheduleData) private _scheduleDatas;
+  mapping(uint256 => mapping(uint256 => uint256)) private _eventRedemptions;
 
   /// @dev Initialize a new vault
   /// @param factory_ Back reference to the factory initialized this vault for global configuration
@@ -374,26 +227,27 @@ contract Coin98Vault is Ownable, Payable {
 
   struct EventData {
     uint256 timestamp;
-    address token;
+    bytes32 merkleRoot;
+    address receivingToken;
+    address sendingToken;
     uint8 isActive;
-  }
-
-  struct ScheduleData {
-    uint256 eventId;
-    uint256 amount;
-    address recipient;
-    uint8 isActive;
-    uint8 isRedeemed;
   }
 
   event AdminAdded(address indexed admin);
   event AdminRemoved(address indexed admin);
   event EventCreated(uint256 eventId, EventData eventData);
   event EventUpdated(uint256 eventId, uint8 isActive);
-  event Redeemed(uint256 schedule, address indexed recipient, address indexed token, uint256 value);
-  event ScheduleCreated(uint256 scheduleId, ScheduleData scheduleData);
-  event ScheduleUpdated(uint256 scheduleId, uint8 isActive);
+  event Redeemed(uint256 eventId, uint256 index, address indexed recipient, address indexed receivingToken, uint256 receivingTokenAmount, address indexed sendingToken, uint256 sendingTokenAmount);
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
+
+  function _setRedemption(uint256 eventId_, uint256 index_) private {
+
+    uint256 redemptionWordIndex = index_ / 256;
+    uint256 redemptionBitMap = _eventRedemptions[eventId_][redemptionWordIndex];
+
+    uint256 redemptionBitIndex = index_ % 256;
+    _eventRedemptions[eventId_][redemptionWordIndex] = redemptionBitMap | (1 << redemptionBitIndex);
+  }
 
   /// @dev Access Control, only owner and admins are able to access the specified function
   modifier onlyAdmin() {
@@ -417,59 +271,69 @@ contract Coin98Vault is Ownable, Payable {
     return _factory;
   }
 
-  /// @dev return current schedule index, next schedule ID will be (schedule index + 1)
-  function scheduleIndex() public view returns (uint256) {
-    return _scheduleIndex;
+  /// @dev check an index whether it's redeemed
+  /// @param eventId_ event ID
+  /// @param index_ index of redemption pre-assigned to user
+  function isRedeemed(uint256 eventId_, uint256 index_) public view returns (bool) {
+
+    uint256 redemptionWordIndex = index_ / 256;
+    uint256 redemptionBitMap = _eventRedemptions[eventId_][redemptionWordIndex];
+
+    uint256 redemptionBitIndex = index_ % 256;
+    uint256 mask = (1 << redemptionBitIndex);
+
+    return redemptionBitMap & mask == mask;
   }
 
-  /// @dev returns detail of a schedule
-  /// @param scheduleId_ address of the recipent
-  function scheduleInfo(uint256 scheduleId_) public view returns (ScheduleData memory, EventData memory) {
-    ScheduleData memory scheduleData = _scheduleDatas[scheduleId_];
-    EventData memory eventData = _eventDatas[scheduleData.eventId];
-    return (scheduleData, eventData);
-  }
-
-  /// @dev claim the token user is eligible from schedule
-  /// user must use the address whitelisted in schedule
-  function redeem(uint256 scheduleId_) public payable {
+  /// @dev claim the token which user is eligible from schedule
+  /// @param eventId_ event ID
+  /// @param index_ index of redemption pre-assigned to user
+  /// @param recipient_ index of redemption pre-assigned to user
+  /// @param receivingAmount_ amount of *receivingToken* user is eligible to redeem
+  /// @param sendingAmount_ amount of *sendingToken* user must send the contract to get *receivingToken*
+  /// @param proofs additional data to validate that the inputted information is valid
+  function redeem(uint256 eventId_, uint256 index_, address recipient_, uint256 receivingAmount_, uint256 sendingAmount_, bytes32[] calldata proofs) public payable {
     uint256 fee = IVaultConfig(_factory).fee();
     uint256 gasLimit = IVaultConfig(_factory).gasLimit();
     if(fee > 0) {
       require(_msgValue() == fee, "C98Vault: Invalid fee");
     }
 
-    ScheduleData storage scheduleData = _scheduleDatas[scheduleId_];
-    require(scheduleData.recipient != address(0), "C98Vault: Invalid schedule");
-    require(scheduleData.recipient == _msgSender(), "C98Vault: Unauthorized");
-    require(scheduleData.isActive != 0 && scheduleData.isRedeemed == 0, "C98Vault: Invalid schedule");
-    EventData storage eventData = _eventDatas[scheduleData.eventId];
-    require(eventData.isActive > 0, "C98Vault: Invalid schedule");
+    EventData storage eventData = _eventDatas[eventId_];
+    require(eventData.isActive > 0, "C98Vault: Invalid event");
     require(eventData.timestamp <= block.timestamp, "C98Vault: Schedule locked");
+    require(recipient_ != address(0), "C98Vault: Invalid schedule");
+
+    bytes32 node = keccak256(abi.encodePacked(index_, recipient_, receivingAmount_, sendingAmount_));
+    require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
+    require(isRedeemed(eventId_, index_));
 
     uint256 availableAmount;
-    if(eventData.token == address(0)) {
+    if(eventData.receivingToken == address(0)) {
       availableAmount = address(this).balance;
     } else {
-      availableAmount = IERC20(eventData.token).balanceOf(address(this));
+      availableAmount = IERC20(eventData.receivingToken).balanceOf(address(this));
     }
 
-    require(scheduleData.amount <= availableAmount, "C98Vault: Insufficient token");
+    require(receivingAmount_ <= availableAmount, "C98Vault: Insufficient token");
 
-    scheduleData.isRedeemed = 1;
+    _setRedemption(eventId_, index_);
     if(fee > 0) {
       uint256 reward = IVaultConfig(_factory).ownerReward();
       uint256 finalFee = fee - reward;
       (bool success, bytes memory data) = _factory.call{value:finalFee, gas:gasLimit}("");
       require(success, "C98Vault: Unable to charge fee");
     }
-    if(eventData.token == address(0)) {
-      _msgSender().call{value:scheduleData.amount, gas:gasLimit}("");
+    if(sendingAmount_ > 0) {
+      IERC20(eventData.sendingToken).transferFrom(_msgSender(), address(this), sendingAmount_);
+    }
+    if(eventData.receivingToken == address(0)) {
+      _msgSender().call{value:receivingAmount_, gas:gasLimit}("");
     } else {
-      IERC20(eventData.token).transfer(_msgSender(), scheduleData.amount);
+      IERC20(eventData.receivingToken).transfer(_msgSender(), receivingAmount_);
     }
 
-    emit Redeemed(scheduleId_, _msgSender(), eventData.token, scheduleData.amount);
+    emit Redeemed(eventId_, index_, _msgSender(), eventData.receivingToken, receivingAmount_, eventData.sendingToken, sendingAmount_);
   }
 
   /// @dev withdraw the token in the vault, no limit
@@ -510,52 +374,17 @@ contract Coin98Vault is Ownable, Payable {
     emit Withdrawn(_msgSender(), destination_, token_, 1);
   }
 
-  /// @dev set the schedule for a specified token
-  /// @param nRecipients_ list of recepient for a vesting batch
-  /// @param nAmounts_ amount of token to be redeemed for a recipient with the same index
-  /// Only owner can use this function
-  function schedule(uint256 eventId_, address[] memory nRecipients_, uint256[] memory nAmounts_) public onlyAdmin {
-    require(nRecipients_.length != 0, "C98Vault: Empty arguments");
-    require(nAmounts_.length != 0, "C98Vault: Empty arguments");
-    require(nRecipients_.length == nAmounts_.length, "C98Vault: Invalid arguments");
-
-    uint256 i;
-    uint256 index = _scheduleIndex;
-    for(i = 0; i < nRecipients_.length; i++) {
-      address nRecipient = nRecipients_[i];
-      uint256 amount = nAmounts_[i];
-      require(nRecipient != address(0), "C98Vault: recipient is zero address");
-
-      index++;
-      ScheduleData memory scheduleData;
-      scheduleData.eventId = eventId_;
-      scheduleData.recipient = nRecipient;
-      scheduleData.amount = amount;
-      scheduleData.isActive = 1;
-
-      _scheduleDatas[index] = scheduleData;
-
-      emit ScheduleCreated(index, scheduleData);
-    }
-    _scheduleIndex = index;
-  }
-
-  /// @dev enable/disable a particular schedule
-  /// @param scheduleId_ schedule ID
-  /// @param isActive_ zero to inactive, any number to active
-  function setScheduleStatus(uint256 scheduleId_, uint8 isActive_) public onlyAdmin {
-    require(_scheduleDatas[scheduleId_].recipient != address(0), "C98Vault: Invalid schedule");
-    require(_scheduleDatas[scheduleId_].isRedeemed == 0, "C98Vault: Redeemed");
-    _scheduleDatas[scheduleId_].isActive = isActive_;
-
-    emit ScheduleUpdated(scheduleId_, isActive_);
-  }
-
-  function createEvent(uint256 eventId_, uint256 timestamp_, address token_) public onlyAdmin {
+  /// @dev create an event to specify how user can claim their token
+  /// @param eventId_ event ID
+  /// @param timestamp_ when the token will be available for redemption
+  /// @param receivingToken_ token user will be receiving, mandatory
+  /// @param sendingToken_ token user need to send in order to receive *receivingToken_*
+  function createEvent(uint256 eventId_, uint256 timestamp_, address receivingToken_, address sendingToken_) public onlyAdmin {
     require(_eventDatas[eventId_].timestamp == 0, "C98Vault: Event existed");
     require(timestamp_ != 0, "C98Vault: Invalid timestamp");
     _eventDatas[eventId_].timestamp = timestamp_;
-    _eventDatas[eventId_].token = token_;
+    _eventDatas[eventId_].receivingToken = receivingToken_;
+    _eventDatas[eventId_].sendingToken = sendingToken_;
     _eventDatas[eventId_].isActive = 1;
 
     emit EventCreated(eventId_, _eventDatas[eventId_]);
