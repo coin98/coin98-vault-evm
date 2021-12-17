@@ -291,6 +291,7 @@ contract Coin98Vault is Ownable, Payable {
     require(eventData.isActive > 0, "C98Vault: Invalid event");
     require(eventData.timestamp <= block.timestamp, "C98Vault: Schedule locked");
     require(recipient_ != address(0), "C98Vault: Invalid schedule");
+    require(recipient_ == _msgSender(), "C98Vault: Unauthorized");
 
     bytes32 node = keccak256(abi.encodePacked(index_, recipient_, receivingAmount_, sendingAmount_));
     require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
@@ -316,12 +317,12 @@ contract Coin98Vault is Ownable, Payable {
       IERC20(eventData.sendingToken).transferFrom(_msgSender(), address(this), sendingAmount_);
     }
     if(eventData.receivingToken == address(0)) {
-      _msgSender().call{value:receivingAmount_, gas:gasLimit}("");
+      recipient_.call{value:receivingAmount_, gas:gasLimit}("");
     } else {
-      IERC20(eventData.receivingToken).transfer(_msgSender(), receivingAmount_);
+      IERC20(eventData.receivingToken).transfer(recipient_, receivingAmount_);
     }
 
-    emit Redeemed(eventId_, index_, _msgSender(), eventData.receivingToken, receivingAmount_, eventData.sendingToken, sendingAmount_);
+    emit Redeemed(eventId_, index_, recipient_, eventData.receivingToken, receivingAmount_, eventData.sendingToken, sendingAmount_);
   }
 
   /// @dev withdraw the token in the vault, no limit
