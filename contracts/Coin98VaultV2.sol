@@ -216,7 +216,7 @@ contract Coin98Vault is Ownable, Payable {
   address[] private _admins;
   mapping(address => bool) private _adminStatuses;
   mapping(uint256 => EventData) private _eventDatas;
-  mapping(uint256 => mapping(uint256 => uint256)) private _eventRedemptions;
+  mapping(uint256 => mapping(uint256 => bool)) private _eventRedemptions;
 
   /// @dev Initialize a new vault
   /// @param factory_ Back reference to the factory initialized this vault for global configuration
@@ -241,12 +241,7 @@ contract Coin98Vault is Ownable, Payable {
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
 
   function _setRedemption(uint256 eventId_, uint256 index_) private {
-
-    uint256 redemptionWordIndex = index_ / 256;
-    uint256 redemptionBitMap = _eventRedemptions[eventId_][redemptionWordIndex];
-
-    uint256 redemptionBitIndex = index_ % 256;
-    _eventRedemptions[eventId_][redemptionWordIndex] = redemptionBitMap | (1 << redemptionBitIndex);
+    _eventRedemptions[eventId_][index_] = true;
   }
 
   /// @dev Access Control, only owner and admins are able to access the specified function
@@ -275,14 +270,7 @@ contract Coin98Vault is Ownable, Payable {
   /// @param eventId_ event ID
   /// @param index_ index of redemption pre-assigned to user
   function isRedeemed(uint256 eventId_, uint256 index_) public view returns (bool) {
-
-    uint256 redemptionWordIndex = index_ / 256;
-    uint256 redemptionBitMap = _eventRedemptions[eventId_][redemptionWordIndex];
-
-    uint256 redemptionBitIndex = index_ % 256;
-    uint256 mask = (1 << redemptionBitIndex);
-
-    return redemptionBitMap & mask == mask;
+    return _eventRedemptions[eventId_][index_];
   }
 
   /// @dev claim the token which user is eligible from schedule
@@ -306,7 +294,7 @@ contract Coin98Vault is Ownable, Payable {
 
     bytes32 node = keccak256(abi.encodePacked(index_, recipient_, receivingAmount_, sendingAmount_));
     require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
-    require(isRedeemed(eventId_, index_));
+    require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
 
     uint256 availableAmount;
     if(eventData.receivingToken == address(0)) {
@@ -379,10 +367,11 @@ contract Coin98Vault is Ownable, Payable {
   /// @param timestamp_ when the token will be available for redemption
   /// @param receivingToken_ token user will be receiving, mandatory
   /// @param sendingToken_ token user need to send in order to receive *receivingToken_*
-  function createEvent(uint256 eventId_, uint256 timestamp_, address receivingToken_, address sendingToken_) public onlyAdmin {
+  function createEvent(uint256 eventId_, uint256 timestamp_, bytes32 merkleRoot_, address receivingToken_, address sendingToken_) public onlyAdmin {
     require(_eventDatas[eventId_].timestamp == 0, "C98Vault: Event existed");
     require(timestamp_ != 0, "C98Vault: Invalid timestamp");
     _eventDatas[eventId_].timestamp = timestamp_;
+    _eventDatas[eventId_].merkleRoot = merkleRoot_;
     _eventDatas[eventId_].receivingToken = receivingToken_;
     _eventDatas[eventId_].sendingToken = sendingToken_;
     _eventDatas[eventId_].isActive = 1;
