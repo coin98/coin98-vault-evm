@@ -291,7 +291,6 @@ contract Coin98Vault is Ownable, Payable {
     require(eventData.isActive > 0, "C98Vault: Invalid event");
     require(eventData.timestamp <= block.timestamp, "C98Vault: Schedule locked");
     require(recipient_ != address(0), "C98Vault: Invalid schedule");
-    require(recipient_ == _msgSender(), "C98Vault: Unauthorized");
 
     bytes32 node = keccak256(abi.encodePacked(index_, recipient_, receivingAmount_, sendingAmount_));
     require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
