@@ -1,5 +1,15 @@
+pub mod constants;
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
+use anchor_lang::solana_program::keccak::{
+  hash,
+  hashv,
+};
+use constants::{
+  ObjType,
+};
+use std::convert::TryInto;
 
 declare_id!("VT1KksX3ZybQBZNU66FrnuX5MrWZit7Pj1hB9uVXwNL");
 
@@ -7,20 +17,78 @@ declare_id!("VT1KksX3ZybQBZNU66FrnuX5MrWZit7Pj1hB9uVXwNL");
 mod coin98_vault {
   use super::*;
 
-  pub fn create_vault(ctx: Context<CreateVaultContext>,
+  pub fn create_vault(
+    ctx: Context<CreateVaultContext>,
     _vault_path: Vec<u8>,
     _vault_nonce: u8,
     signer_nonce: u8,
-    owner: Pubkey,
-    members: Vec<Pubkey>,
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_CreateVault");
 
+    let root = &ctx.accounts.root;
+    if !verify_root(root.key) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
+
     let vault = &mut ctx.accounts.vault;
 
+    vault.obj_type = ObjType::Vault;
     vault.nonce = signer_nonce;
-    vault.owner = owner;
-    vault.members = members;
+
+    Ok(())
+  }
+
+  pub fn set_vault(
+    ctx: Context<SetVaultContext>,
+    admins: Vec<Pubkey>,
+    is_active: bool,
+  ) -> ProgramResult {
+    msg!("Coin98Vault: Instruction_SetVault");
+
+    let root = &ctx.accounts.root;
+    if !verify_root(root.key) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
+
+    let vault = &mut ctx.accounts.vault;
+    vault.admins = admins;
+    vault.is_active = is_active;
+
+    Ok(())
+  }
+
+  pub fn create_distribution(
+    ctx: Context<CreateDistributionContext>,
+    _dist_path: Vec<u8>,
+    _dist_nonce: u8,
+    event_id: u64,
+    timestamp: i64,
+    merkle_root: [u8; 32],
+    receiving_token: Pubkey,
+    receiving_token_account: Pubkey,
+    sending_token: Pubkey,
+    sending_token_account: Pubkey,
+  ) -> ProgramResult {
+    msg!("Coin98Vault: Instruction_CreateDistribution");
+
+    let root = &ctx.accounts.root;
+    if !verify_root(root.key) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
+
+    let distribution = &mut ctx.accounts.distribution;
+
+
+    Ok(())
+  }
+
+  pub fn set_distribution_status(
+    ctx: Context<SetDistributionContext>,
+    is_active: bool,
+  ) -> ProgramResult {
+    msg!("Coin98Vault: Instruction_SetDistributionStatus");
+
+    // TODO: Verify ownership
 
     Ok(())
   }
@@ -37,17 +105,6 @@ mod coin98_vault {
     let recipient = &ctx.accounts.recipient;
 
     let mut is_authorized = false;
-    if vault.owner == *owner.key {
-      is_authorized = true;
-    }
-    for (_i, member) in vault.members.iter().enumerate() {
-      if member == owner.key {
-        is_authorized = true;
-      }
-    }
-    if !is_authorized {
-      return Err(ErrorCode::InvalidOwner.into());
-    }
 
     let instruction = &solana_program::system_instruction::transfer(vault_signer.key, recipient.key, amount);
     let seeds: &[&[_]] = &[
@@ -77,17 +134,6 @@ mod coin98_vault {
     let token_program = &ctx.accounts.token_program;
 
     let mut is_authorized = false;
-    if vault.owner == *owner.key {
-      is_authorized = true;
-    }
-    for (_i, member) in vault.members.iter().enumerate() {
-      if member == owner.key {
-        is_authorized = true;
-      }
-    }
-    if !is_authorized {
-      return Err(ErrorCode::InvalidOwner.into());
-    }
 
     let data = TransferTokenParams {
       instruction: 3,
@@ -115,59 +161,23 @@ mod coin98_vault {
     Ok(())
   }
 
-  pub fn transfer_ownership(ctx: Context<TransferOwnershipContext>,
-    new_owner: Pubkey,
+  pub fn withdraw_vault_sol(
+    ctx: Context<WithdrawVaultSolContext>,
   ) -> ProgramResult {
-    msg!("Coin98Vault: Instruction_TransferOwnership");
-
-    let owner = &ctx.accounts.owner;
-    let vault = &ctx.accounts.vault;
-
-    if vault.owner != *owner.key {
-      return Err(ErrorCode::InvalidOwner.into());
-    }
-
-    let vault = &mut ctx.accounts.vault;
-
-    vault.new_owner = new_owner;
 
     Ok(())
   }
 
-  pub fn accept_ownership(ctx: Context<AcceptOwnershipContext>,
+  pub fn withdraw_vault_token(
+    ctx: Context<WithdrawVaultTokenContext>,
   ) -> ProgramResult {
-    msg!("Coin98Vault: Instruction_AcceptOwnership");
-
-    let new_owner = &ctx.accounts.new_owner;
-    let vault = &ctx.accounts.vault;
-
-    if vault.new_owner != *new_owner.key {
-      return Err(ErrorCode::InvalidNewOwner.into());
-    }
-
-    let vault = &mut ctx.accounts.vault;
-
-    vault.owner = vault.new_owner;
-    vault.new_owner = solana_program::system_program::ID;
 
     Ok(())
   }
 
-  pub fn change_members(ctx: Context<ChangeMembersContext>,
-    members: Vec<Pubkey>,
+  pub fn redeem(
+    ctx: Context<RedeemContext>,
   ) -> ProgramResult {
-    msg!("Coin98Vault: Instruction_ChangeMembers");
-
-    let owner = &ctx.accounts.owner;
-    let vault = &ctx.accounts.vault;
-
-    if vault.owner != *owner.key {
-      return Err(ErrorCode::InvalidOwner.into());
-    }
-
-    let vault = &mut ctx.accounts.vault;
-
-    vault.members = members;
 
     Ok(())
   }
@@ -178,17 +188,56 @@ mod coin98_vault {
 pub struct CreateVaultContext<'info> {
 
   #[account(signer)]
-  pub payer: AccountInfo<'info>,
+  pub root: AccountInfo<'info>,
 
   #[account(init, seeds = [
     &[93, 85, 196,  21, 227, 86, 221, 123],
     &*vault_path,
-  ], bump = vault_nonce, payer = payer, space = 589)]
+  ], bump = vault_nonce, payer = root, space = 589)]
   pub vault: Account<'info, Vault>,
 
   pub rent: Sysvar<'info, Rent>,
 
   pub system_program: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetVaultContext<'info> {
+
+  #[account(signer)]
+  pub root: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub vault: Account<'info, Vault>,
+}
+
+#[derive(Accounts)]
+#[instruction(dist_path: Vec<u8>, dist_nonce: u8, _signer_nonce: u8)]
+pub struct CreateDistributionContext<'info> {
+
+  #[account(signer)]
+  pub root: AccountInfo<'info>,
+
+  #[account(init, seeds = [
+    &[93, 85, 196,  21, 227, 86, 221, 123],
+    &[128, 1, 194, 116, 57, 101, 12, 92],
+    &*dist_path,
+  ], bump = dist_nonce, payer = root, space = 589)]
+  pub distribution: Account<'info, Vault>,
+
+  pub rent: Sysvar<'info, Rent>,
+
+  pub system_program: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetDistributionContext<'info> {
+
+  #[account(signer)]
+  pub root: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub distribution: Account<'info, Vault>,
 }
 
 #[derive(Accounts)]
@@ -234,42 +283,76 @@ pub struct WithdrawTokenContext<'info> {
   pub token_program: AccountInfo<'info>,
 }
 
-#[derive(Accounts)]
-pub struct TransferOwnershipContext<'info> {
 
-  #[account(mut)]
+
+#[derive(Accounts)]
+pub struct WithdrawVaultSolContext<'info> {
+
   pub vault: Account<'info, Vault>,
+
+  #[account(mut, seeds = [
+    &[2, 151, 229, 53, 244,  77, 229,  7],
+    vault.to_account_info().key.as_ref(),
+  ], bump = vault.nonce)]
+  pub vault_signer: AccountInfo<'info>,
 
   #[account(signer)]
   pub owner: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub recipient: AccountInfo<'info>,
+
+  pub system_program: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
-pub struct AcceptOwnershipContext<'info> {
+pub struct WithdrawVaultTokenContext<'info> {
 
-  #[account(mut)]
   pub vault: Account<'info, Vault>,
 
-  #[account(signer)]
-  pub new_owner: AccountInfo<'info>,
-}
-
-#[derive(Accounts)]
-pub struct ChangeMembersContext<'info> {
-
-  #[account(mut)]
-  pub vault: Account<'info, Vault>,
+  #[account(seeds = [
+    &[2, 151, 229, 53, 244,  77, 229,  7],
+    vault.to_account_info().key.as_ref(),
+  ], bump = vault.nonce)]
+  pub vault_signer: AccountInfo<'info>,
 
   #[account(signer)]
   pub owner: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub sender: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub recipient: AccountInfo<'info>,
+
+  pub token_program: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RedeemContext<'info> {
+
+  pub root_signer: AccountInfo<'info>,
+}
+
+#[account]
+pub struct Distribution {
+  pub obj_type: ObjType,
+  pub event_id: u64,
+  pub timestamp: i64,
+  pub merkle_root: Vec<u8>,
+  pub receiving_token: Pubkey,
+  pub receiving_token_account: Pubkey,
+  pub sending_token: Pubkey,
+  pub sending_token_account: Pubkey,
+  pub is_active: bool,
 }
 
 #[account]
 pub struct Vault {
+  pub obj_type: ObjType,
   pub nonce: u8,
-  pub owner: Pubkey,
-  pub new_owner: Pubkey,
-  pub members: Vec<Pubkey>,
+  pub admins: Vec<Pubkey>,
+  pub is_active: bool,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
@@ -289,4 +372,36 @@ pub enum ErrorCode {
 
   #[msg("Coin98Vault: Transaction failed.")]
   TransactionFailed,
+}
+
+/// Returns true if the user has root priviledge of the contract
+pub fn verify_root(user: &Pubkey) -> bool {
+  let user_key = user.to_string();
+  let result = constants::ROOT_KEYS.iter().position(|&key| key == &user_key[..]);
+  result != None
+}
+
+/// Returns true if the user is an admin of a specified vault
+pub fn verify_admin(user: &Pubkey, vault: &Vault) -> bool {
+  let result = vault.admins.iter().position(|&key| key == *user);
+  result != None
+}
+
+/// Returns true if a `leaf` can be proved to be a part of a Merkle tree
+/// defined by `root`. For this, a `proof` must be provided, containing
+/// sibling hashes on the branch from the leaf to the root of the tree. Each
+/// pair of leaves and each pair of pre-images are assumed to be sorted.
+pub fn verify_proof(proofs: Vec<[u8; 32]>, root: [u8; 32], leaf: [u8; 32]) -> bool {
+  let mut computed_hash = leaf;
+  for proof in proofs.into_iter() {
+    if computed_hash < proof {
+      // Hash(current computed hash + current element of the proof)
+      computed_hash = hashv(&[&computed_hash, &proof]).to_bytes();
+    } else {
+      // Hash(current element of the proof + current computed hash)
+      computed_hash = hashv(&[&proof, &computed_hash]).to_bytes();
+    }
+  }
+  // Check if the computed hash (root) is equal to the provided root
+  computed_hash == root
 }
