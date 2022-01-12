@@ -13,6 +13,8 @@ use std::convert::TryInto;
 
 declare_id!("VT1KksX3ZybQBZNU66FrnuX5MrWZit7Pj1hB9uVXwNL");
 
+static TOKEN_PROGRAM_ID: Pubkey = Pubkey::new_from_array([6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169]);
+
 #[program]
 mod coin98_vault {
   use super::*;
@@ -51,6 +53,7 @@ mod coin98_vault {
     }
 
     let vault = &mut ctx.accounts.vault;
+
     vault.admins = admins;
     vault.is_active = is_active;
 
@@ -61,6 +64,7 @@ mod coin98_vault {
     ctx: Context<CreateDistributionContext>,
     _dist_path: Vec<u8>,
     _dist_nonce: u8,
+    user_count: u16,
     event_id: u64,
     timestamp: i64,
     merkle_root: [u8; 32],
@@ -78,6 +82,15 @@ mod coin98_vault {
 
     let distribution = &mut ctx.accounts.distribution;
 
+    distribution.event_id = event_id;
+    distribution.timestamp = timestamp;
+    distribution.merkle_root = merkle_root.try_to_vec().unwrap();
+    distribution.receiving_token = receiving_token;
+    distribution.receiving_token_account = receiving_token_account;
+    distribution.sending_token = sending_token;
+    distribution.sending_token_account = sending_token_account;
+    distribution.is_active = true;
+    distribution.redemptions = vec![false; user_count.into()];
 
     Ok(())
   }
@@ -88,7 +101,14 @@ mod coin98_vault {
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_SetDistributionStatus");
 
-    // TODO: Verify ownership
+    let root = &ctx.accounts.root;
+    if !verify_root(root.key) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
+
+    let distribution = &mut ctx.accounts.distribution;
+
+    distribution.is_active = is_active;
 
     Ok(())
   }
@@ -99,12 +119,106 @@ mod coin98_vault {
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_WithdrawSOL");
 
-    let vault = &ctx.accounts.vault;
-    let vault_signer = &ctx.accounts.vault_signer;
-    let owner = &ctx.accounts.owner;
+    let root = &ctx.accounts.root;
+    let root_signer = &ctx.accounts.root_signer;
     let recipient = &ctx.accounts.recipient;
 
-    let mut is_authorized = false;
+    if !verify_root(root.key) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
+    let inner_seeds: &[&[u8]] = &[
+      &[2, 151, 229, 53, 244, 77, 229, 7],
+      &[128, 1, 194, 116, 57, 101, 12, 92],
+    ];
+    let (signer_address, signer_nonce) = Pubkey::find_program_address(
+      &inner_seeds,
+      ctx.program_id,
+    );
+    if *root_signer.key != signer_address {
+      return Err(ErrorCode::InvalidSigner.into());
+    }
+
+    let instruction = &solana_program::system_instruction::transfer(root_signer.key, recipient.key, amount);
+    let seeds: &[&[_]] = &[
+      &inner_seeds[0],
+      &inner_seeds[1],
+      &[signer_nonce],
+    ];
+    let result = solana_program::program::invoke_signed(&instruction, &[root_signer.clone(), recipient.clone()], &[&seeds]);
+    if result.is_err() {
+      return Err(ErrorCode::TransactionFailed.into());
+    }
+
+    Ok(())
+  }
+
+  pub fn withdraw_token(
+    ctx: Context<WithdrawTokenContext>,
+    amount: u64,
+  ) -> ProgramResult {
+    msg!("Coin98Vault: Instruction_WithdrawToken");
+
+    let root = &ctx.accounts.root;
+    let root_signer = &ctx.accounts.root_signer;
+    let sender = &ctx.accounts.sender;
+    let recipient = &ctx.accounts.recipient;
+    let token_program = &ctx.accounts.token_program;
+
+    if !verify_root(root.key) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
+    let inner_seeds: &[&[u8]] = &[
+      &[2, 151, 229, 53, 244, 77, 229, 7],
+      &[128, 1, 194, 116, 57, 101, 12, 92],
+    ];
+    let (signer_address, signer_nonce) = Pubkey::find_program_address(
+      &inner_seeds,
+      ctx.program_id,
+    );
+    if *root_signer.key != signer_address {
+      return Err(ErrorCode::InvalidSigner.into());
+    }
+
+    let data = TransferTokenParams {
+      instruction: 3,
+      amount: amount,
+    };
+    let instruction = solana_program::instruction::Instruction {
+      program_id: *token_program.key,
+      accounts: vec![
+        solana_program::instruction::AccountMeta::new(*sender.key, false),
+        solana_program::instruction::AccountMeta::new(*recipient.key, false),
+        solana_program::instruction::AccountMeta::new_readonly(*root_signer.key, true),
+      ],
+      data: data.try_to_vec().unwrap(),
+    };
+    let seeds: &[&[_]] = &[
+      &inner_seeds[0],
+      &inner_seeds[1],
+      &[signer_nonce],
+    ];
+    let result = solana_program::program::invoke_signed(&instruction, &[sender.clone(), recipient.clone(), root_signer.clone()], &[&seeds]);
+    if result.is_err() {
+      return Err(ErrorCode::TransactionFailed.into());
+    }
+
+    Ok(())
+  }
+
+  pub fn withdraw_vault_sol(
+    ctx: Context<WithdrawVaultSolContext>,
+    amount: u64,
+  ) -> ProgramResult {
+    msg!("Coin98Vault: Instruction_WithdrawVaultSOL");
+
+    let owner = &ctx.accounts.owner;
+    let vault = &ctx.accounts.vault;
+    let vault_signer = &ctx.accounts.vault_signer;
+    let recipient = &ctx.accounts.recipient;
+
+    if !verify_root(owner.key) || !verify_admin(owner.key, &vault) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
 
     let instruction = &solana_program::system_instruction::transfer(vault_signer.key, recipient.key, amount);
     let seeds: &[&[_]] = &[
@@ -120,20 +234,22 @@ mod coin98_vault {
     Ok(())
   }
 
-  pub fn withdraw_token(
-    ctx: Context<WithdrawTokenContext>,
+  pub fn withdraw_vault_token(
+    ctx: Context<WithdrawVaultTokenContext>,
     amount: u64,
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_WithdrawToken");
 
+    let owner = &ctx.accounts.owner;
     let vault = &ctx.accounts.vault;
     let vault_signer = &ctx.accounts.vault_signer;
-    let owner = &ctx.accounts.owner;
     let sender = &ctx.accounts.sender;
     let recipient = &ctx.accounts.recipient;
     let token_program = &ctx.accounts.token_program;
 
-    let mut is_authorized = false;
+    if !verify_root(owner.key) || !verify_admin(owner.key, &vault) {
+      return Err(ErrorCode::InvalidOwner.into());
+    }
 
     let data = TransferTokenParams {
       instruction: 3,
@@ -161,23 +277,160 @@ mod coin98_vault {
     Ok(())
   }
 
-  pub fn withdraw_vault_sol(
-    ctx: Context<WithdrawVaultSolContext>,
+  pub fn redeem_token(
+    ctx: Context<RedeemTokenContext>,
+    index: u16,
+    proofs: Vec<[u8; 32]>,
+    receiving_amount: u64,
+    sending_amount: u64,
   ) -> ProgramResult {
+    msg!("Coin98Vault: Instruction_RedeemToken");
+
+    let distribution = &ctx.accounts.distribution;
+    let root_signer = &ctx.accounts.root_signer;
+    let root_token0 = &ctx.accounts.root_token0;
+    let user = &ctx.accounts.user;
+    let user_token0 = &ctx.accounts.user_token0;
+    let user_index: usize = index.into();
+
+    let redemption_params = RedemptionParams {
+      index: index,
+      address: *user.key,
+      receiving_amount: receiving_amount,
+      sending_amount: sending_amount,
+    };
+    let redemption_data = redemption_params.try_to_vec().unwrap();
+    let leaf = hash(&redemption_data[..]);
+    let root: [u8; 32] = distribution.merkle_root.clone().try_into().unwrap();
+    if !verify_proof(proofs, root, leaf.to_bytes()) {
+      return Err(ErrorCode::Unauthorized.into());
+    }
+    let inner_seeds: &[&[u8]] = &[
+      &[2, 151, 229, 53, 244, 77, 229, 7],
+      &[128, 1, 194, 116, 57, 101, 12, 92],
+    ];
+    let (signer_address, signer_nonce) = Pubkey::find_program_address(
+      &inner_seeds,
+      ctx.program_id,
+    );
+    if *root_signer.key != signer_address {
+      return Err(ErrorCode::InvalidSigner.into());
+    }
+
+    let distribution = &mut ctx.accounts.distribution;
+    distribution.redemptions[user_index] = true;
+
+    let data = TransferTokenParams {
+      instruction: 3,
+      amount: receiving_amount,
+    };
+    let instruction = solana_program::instruction::Instruction {
+      program_id: TOKEN_PROGRAM_ID,
+      accounts: vec![
+        solana_program::instruction::AccountMeta::new(*root_token0.key, false),
+        solana_program::instruction::AccountMeta::new(*user_token0.key, false),
+        solana_program::instruction::AccountMeta::new_readonly(*root_signer.key, true),
+      ],
+      data: data.try_to_vec().unwrap(),
+    };
+    let seeds: &[&[_]] = &[
+      &inner_seeds[0],
+      &inner_seeds[1],
+      &[signer_nonce],
+    ];
+    let result = solana_program::program::invoke_signed(&instruction, &[root_token0.clone(), user_token0.clone(), root_signer.clone()], &[&seeds]);
+    if result.is_err() {
+      return Err(ErrorCode::TransactionFailed.into());
+    }
 
     Ok(())
   }
 
-  pub fn withdraw_vault_token(
-    ctx: Context<WithdrawVaultTokenContext>,
+  pub fn redeem_token_with_fee(
+    ctx: Context<RedeemTokenWithFeeContext>,
+    index: u16,
+    proofs: Vec<[u8; 32]>,
+    receiving_amount: u64,
+    sending_amount: u64,
   ) -> ProgramResult {
+    msg!("Coin98Vault: Instruction_RedeemToken");
 
-    Ok(())
-  }
+    let distribution = &ctx.accounts.distribution;
+    let root_signer = &ctx.accounts.root_signer;
+    let root_token0 = &ctx.accounts.root_token0;
+    let root_token1 = &ctx.accounts.root_token1;
+    let user = &ctx.accounts.user;
+    let user_token0 = &ctx.accounts.user_token0;
+    let user_token1 = &ctx.accounts.user_token1;
+    let user_index: usize = index.into();
 
-  pub fn redeem(
-    ctx: Context<RedeemContext>,
-  ) -> ProgramResult {
+    let redemption_params = RedemptionParams {
+      index: index,
+      address: *user.key,
+      receiving_amount: receiving_amount,
+      sending_amount: sending_amount,
+    };
+    let redemption_data = redemption_params.try_to_vec().unwrap();
+    let leaf = hash(&redemption_data[..]);
+    let root: [u8; 32] = distribution.merkle_root.clone().try_into().unwrap();
+    if !verify_proof(proofs, root, leaf.to_bytes()) {
+      return Err(ErrorCode::Unauthorized.into());
+    }
+    let inner_seeds: &[&[u8]] = &[
+      &[2, 151, 229, 53, 244, 77, 229, 7],
+      &[128, 1, 194, 116, 57, 101, 12, 92],
+    ];
+    let (signer_address, signer_nonce) = Pubkey::find_program_address(
+      &inner_seeds,
+      ctx.program_id,
+    );
+    if *root_signer.key != signer_address {
+      return Err(ErrorCode::InvalidSigner.into());
+    }
+
+    let distribution = &mut ctx.accounts.distribution;
+    distribution.redemptions[user_index] = true;
+
+    let data = TransferTokenParams {
+      instruction: 3,
+      amount: sending_amount,
+    };
+    let instruction = solana_program::instruction::Instruction {
+      program_id: TOKEN_PROGRAM_ID,
+      accounts: vec![
+        solana_program::instruction::AccountMeta::new(*user_token1.key, false),
+        solana_program::instruction::AccountMeta::new(*root_token1.key, false),
+        solana_program::instruction::AccountMeta::new_readonly(*user.key, true),
+      ],
+      data: data.try_to_vec().unwrap(),
+    };
+    let result = solana_program::program::invoke(&instruction, &[user_token1.clone(), root_token1.clone(), user.clone()]);
+    if result.is_err() {
+      return Err(ErrorCode::TransactionFailed.into());
+    }
+
+    let data = TransferTokenParams {
+      instruction: 3,
+      amount: receiving_amount,
+    };
+    let instruction = solana_program::instruction::Instruction {
+      program_id: TOKEN_PROGRAM_ID,
+      accounts: vec![
+        solana_program::instruction::AccountMeta::new(*root_token0.key, false),
+        solana_program::instruction::AccountMeta::new(*user_token0.key, false),
+        solana_program::instruction::AccountMeta::new_readonly(*root_signer.key, true),
+      ],
+      data: data.try_to_vec().unwrap(),
+    };
+    let seeds: &[&[_]] = &[
+      &inner_seeds[0],
+      &inner_seeds[1],
+      &[signer_nonce],
+    ];
+    let result = solana_program::program::invoke_signed(&instruction, &[root_token0.clone(), user_token0.clone(), root_signer.clone()], &[&seeds]);
+    if result.is_err() {
+      return Err(ErrorCode::TransactionFailed.into());
+    }
 
     Ok(())
   }
@@ -193,7 +446,7 @@ pub struct CreateVaultContext<'info> {
   #[account(init, seeds = [
     &[93, 85, 196,  21, 227, 86, 221, 123],
     &*vault_path,
-  ], bump = vault_nonce, payer = root, space = 589)]
+  ], bump = vault_nonce, payer = root, space = 535)]
   pub vault: Account<'info, Vault>,
 
   pub rent: Sysvar<'info, Rent>,
@@ -212,7 +465,7 @@ pub struct SetVaultContext<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(dist_path: Vec<u8>, dist_nonce: u8, _signer_nonce: u8)]
+#[instruction(dist_path: Vec<u8>, dist_nonce: u8, _signer_nonce: u8, user_count: u16)]
 pub struct CreateDistributionContext<'info> {
 
   #[account(signer)]
@@ -222,8 +475,8 @@ pub struct CreateDistributionContext<'info> {
     &[93, 85, 196,  21, 227, 86, 221, 123],
     &[128, 1, 194, 116, 57, 101, 12, 92],
     &*dist_path,
-  ], bump = dist_nonce, payer = root, space = 589)]
-  pub distribution: Account<'info, Vault>,
+  ], bump = dist_nonce, payer = root, space = 202usize + usize::from(user_count))]
+  pub distribution: Account<'info, Distribution>,
 
   pub rent: Sysvar<'info, Rent>,
 
@@ -243,16 +496,11 @@ pub struct SetDistributionContext<'info> {
 #[derive(Accounts)]
 pub struct WithdrawSolContext<'info> {
 
-  pub vault: Account<'info, Vault>,
-
-  #[account(mut, seeds = [
-    &[2, 151, 229, 53, 244,  77, 229,  7],
-    vault.to_account_info().key.as_ref(),
-  ], bump = vault.nonce)]
-  pub vault_signer: AccountInfo<'info>,
-
   #[account(signer)]
-  pub owner: AccountInfo<'info>,
+  pub root: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub root_signer: AccountInfo<'info>,
 
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
@@ -263,16 +511,10 @@ pub struct WithdrawSolContext<'info> {
 #[derive(Accounts)]
 pub struct WithdrawTokenContext<'info> {
 
-  pub vault: Account<'info, Vault>,
-
-  #[account(seeds = [
-    &[2, 151, 229, 53, 244,  77, 229,  7],
-    vault.to_account_info().key.as_ref(),
-  ], bump = vault.nonce)]
-  pub vault_signer: AccountInfo<'info>,
-
   #[account(signer)]
-  pub owner: AccountInfo<'info>,
+  pub root: AccountInfo<'info>,
+
+  pub root_signer: AccountInfo<'info>,
 
   #[account(mut)]
   pub sender: AccountInfo<'info>,
@@ -283,10 +525,11 @@ pub struct WithdrawTokenContext<'info> {
   pub token_program: AccountInfo<'info>,
 }
 
-
-
 #[derive(Accounts)]
 pub struct WithdrawVaultSolContext<'info> {
+
+  #[account(signer)]
+  pub owner: AccountInfo<'info>,
 
   pub vault: Account<'info, Vault>,
 
@@ -295,9 +538,6 @@ pub struct WithdrawVaultSolContext<'info> {
     vault.to_account_info().key.as_ref(),
   ], bump = vault.nonce)]
   pub vault_signer: AccountInfo<'info>,
-
-  #[account(signer)]
-  pub owner: AccountInfo<'info>,
 
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
@@ -308,6 +548,9 @@ pub struct WithdrawVaultSolContext<'info> {
 #[derive(Accounts)]
 pub struct WithdrawVaultTokenContext<'info> {
 
+  #[account(signer)]
+  pub owner: AccountInfo<'info>,
+
   pub vault: Account<'info, Vault>,
 
   #[account(seeds = [
@@ -315,9 +558,6 @@ pub struct WithdrawVaultTokenContext<'info> {
     vault.to_account_info().key.as_ref(),
   ], bump = vault.nonce)]
   pub vault_signer: AccountInfo<'info>,
-
-  #[account(signer)]
-  pub owner: AccountInfo<'info>,
 
   #[account(mut)]
   pub sender: AccountInfo<'info>,
@@ -329,9 +569,48 @@ pub struct WithdrawVaultTokenContext<'info> {
 }
 
 #[derive(Accounts)]
-pub struct RedeemContext<'info> {
+pub struct RedeemTokenContext<'info> {
+
+  #[account(mut)]
+  pub distribution: Account<'info, Distribution>,
 
   pub root_signer: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub root_token0: AccountInfo<'info>,
+
+  pub user: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub user_token0: AccountInfo<'info>,
+
+  pub token_program: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RedeemTokenWithFeeContext<'info> {
+
+  #[account(mut)]
+  pub distribution: Account<'info, Distribution>,
+
+  pub root_signer: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub root_token0: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub root_token1: AccountInfo<'info>,
+
+  #[account(signer)]
+  pub user: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub user_token0: AccountInfo<'info>,
+
+  #[account(mut)]
+  pub user_token1: AccountInfo<'info>,
+
+  pub token_program: AccountInfo<'info>,
 }
 
 #[account]
@@ -345,6 +624,7 @@ pub struct Distribution {
   pub sending_token: Pubkey,
   pub sending_token_account: Pubkey,
   pub is_active: bool,
+  pub redemptions: Vec<bool>,
 }
 
 #[account]
@@ -353,6 +633,14 @@ pub struct Vault {
   pub nonce: u8,
   pub admins: Vec<Pubkey>,
   pub is_active: bool,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Default)]
+pub struct RedemptionParams {
+  pub index: u16,
+  pub address: Pubkey,
+  pub receiving_amount: u64,
+  pub sending_amount: u64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
@@ -367,11 +655,14 @@ pub enum ErrorCode {
   #[msg("Coin98Vault: Not an owner.")]
   InvalidOwner,
 
-  #[msg("Coin98Vault: Not new owner.")]
-  InvalidNewOwner,
+  #[msg("Coin98Vault: Invalid signer.")]
+  InvalidSigner,
 
   #[msg("Coin98Vault: Transaction failed.")]
   TransactionFailed,
+
+  #[msg("Coin98Vault: Unauthorized.")]
+  Unauthorized,
 }
 
 /// Returns true if the user has root priviledge of the contract
