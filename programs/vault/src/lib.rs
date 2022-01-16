@@ -40,7 +40,6 @@ mod coin98_vault {
   pub fn set_vault(
     ctx: Context<SetVaultContext>,
     admins: Vec<Pubkey>,
-    is_active: bool,
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_SetVault");
 
@@ -52,7 +51,6 @@ mod coin98_vault {
     let vault = &mut ctx.accounts.vault;
 
     vault.admins = admins;
-    vault.is_active = is_active;
 
     Ok(())
   }
@@ -158,7 +156,6 @@ mod coin98_vault {
     let root_signer = &ctx.accounts.root_signer;
     let sender = &ctx.accounts.sender;
     let recipient = &ctx.accounts.recipient;
-    let token_program = &ctx.accounts.token_program;
 
     if !verify_root(root.key) {
       return Err(ErrorCode::InvalidOwner.into());
@@ -227,7 +224,6 @@ mod coin98_vault {
     let vault_signer = &ctx.accounts.vault_signer;
     let sender = &ctx.accounts.sender;
     let recipient = &ctx.accounts.recipient;
-    let token_program = &ctx.accounts.token_program;
 
     if !verify_root(owner.key) && !verify_admin(owner.key, &vault) {
       return Err(ErrorCode::InvalidOwner.into());
@@ -260,7 +256,15 @@ mod coin98_vault {
     let root_token0 = &ctx.accounts.root_token0;
     let user = &ctx.accounts.user;
     let user_token0 = &ctx.accounts.user_token0;
+    let clock = &ctx.accounts.clock;
     let user_index: usize = index.into();
+
+    if !schedule.is_active {
+      return Err(ErrorCode::ScheduleUnavailable.into());
+    }
+    if clock.unix_timestamp < schedule.timestamp {
+      return Err(ErrorCode::ScheduleLocked.into());
+    }
 
     let redemption_params = RedemptionParams {
       index: index,
@@ -274,6 +278,9 @@ mod coin98_vault {
     if !shared::verify_proof(proofs, root, leaf.to_bytes()) {
       return Err(ErrorCode::Unauthorized.into());
     }
+    if schedule.redemptions[user_index] {
+      return Err(ErrorCode::Redeemed.into());
+    }
     let inner_seeds: &[&[u8]] = &[
       &[2, 151, 229, 53, 244, 77, 229, 7],
       &[128, 1, 194, 116, 57, 101, 12, 92],
@@ -282,8 +289,15 @@ mod coin98_vault {
       &inner_seeds,
       ctx.program_id,
     );
+
     if *root_signer.key != signer_address {
       return Err(ErrorCode::InvalidSigner.into());
+    }
+    if *root_token0.key != schedule.receiving_token_account {
+      return Err(ErrorCode::InvalidTokenAccount.into());
+    }
+    if schedule.sending_token_mint != solana_program::system_program::ID && sending_amount > 0 {
+      return Err(ErrorCode::FeeRequired.into());
     }
 
     let schedule = &mut ctx.accounts.schedule;
@@ -318,7 +332,15 @@ mod coin98_vault {
     let user = &ctx.accounts.user;
     let user_token0 = &ctx.accounts.user_token0;
     let user_token1 = &ctx.accounts.user_token1;
+    let clock = &ctx.accounts.clock;
     let user_index: usize = index.into();
+
+    if !schedule.is_active {
+      return Err(ErrorCode::ScheduleUnavailable.into());
+    }
+    if clock.unix_timestamp < schedule.timestamp {
+      return Err(ErrorCode::ScheduleLocked.into());
+    }
 
     let redemption_params = RedemptionParams {
       index: index,
@@ -332,6 +354,9 @@ mod coin98_vault {
     if !shared::verify_proof(proofs, root, leaf.to_bytes()) {
       return Err(ErrorCode::Unauthorized.into());
     }
+    if schedule.redemptions[user_index] {
+      return Err(ErrorCode::Redeemed.into());
+    }
     let inner_seeds: &[&[u8]] = &[
       &[2, 151, 229, 53, 244, 77, 229, 7],
       &[128, 1, 194, 116, 57, 101, 12, 92],
@@ -342,6 +367,12 @@ mod coin98_vault {
     );
     if *root_signer.key != signer_address {
       return Err(ErrorCode::InvalidSigner.into());
+    }
+    if *root_token0.key != schedule.receiving_token_account {
+      return Err(ErrorCode::InvalidTokenAccount.into());
+    }
+    if *root_token1.key != schedule.sending_token_account {
+      return Err(ErrorCode::InvalidTokenAccount.into());
     }
 
     let schedule = &mut ctx.accounts.schedule;
@@ -395,7 +426,7 @@ pub struct SetVaultContext<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(sched_path: Vec<u8>, sched_nonce: u8, user_count: u16)]
+#[instruction(schedule_path: Vec<u8>, schedule_nonce: u8, user_count: u16)]
 pub struct CreateScheduleContext<'info> {
 
   #[account(signer)]
@@ -403,8 +434,8 @@ pub struct CreateScheduleContext<'info> {
 
   #[account(init, seeds = [
     &[244, 131, 10, 29, 174, 41, 128, 68],
-    &*sched_path,
-  ], bump = sched_nonce, payer = root, space = 202usize + usize::from(user_count))]
+    &*schedule_path,
+  ], bump = schedule_nonce, payer = root, space = 202usize + usize::from(user_count))]
   pub schedule: Account<'info, Schedule>,
 
   pub rent: Sysvar<'info, Rent>,
@@ -514,6 +545,8 @@ pub struct RedeemTokenContext<'info> {
   pub user_token0: AccountInfo<'info>,
 
   pub token_program: AccountInfo<'info>,
+
+  pub clock: Sysvar<'info, Clock>,
 }
 
 #[derive(Accounts)]
@@ -540,6 +573,8 @@ pub struct RedeemTokenWithFeeContext<'info> {
   pub user_token1: AccountInfo<'info>,
 
   pub token_program: AccountInfo<'info>,
+
+  pub clock: Sysvar<'info, Clock>,
 }
 
 #[account]
@@ -561,7 +596,6 @@ pub struct Vault {
   pub obj_type: ObjType,
   pub nonce: u8,
   pub admins: Vec<Pubkey>,
-  pub is_active: bool,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
@@ -575,11 +609,26 @@ pub struct RedemptionParams {
 #[error]
 pub enum ErrorCode {
 
+  #[msg("Coin98Vault: Fee required.")]
+  FeeRequired,
+
   #[msg("Coin98Vault: Not an owner.")]
   InvalidOwner,
 
   #[msg("Coin98Vault: Invalid signer.")]
   InvalidSigner,
+
+  #[msg("Coin98Vault: Invalid token account.")]
+  InvalidTokenAccount,
+
+  #[msg("Coin98Vault: Redeemed.")]
+  Redeemed,
+
+  #[msg("Coin98Vault: Schedule locked.")]
+  ScheduleLocked,
+
+  #[msg("Coin98Vault: Schedule unavailable.")]
+  ScheduleUnavailable,
 
   #[msg("Coin98Vault: Transaction failed.")]
   TransactionFailed,
