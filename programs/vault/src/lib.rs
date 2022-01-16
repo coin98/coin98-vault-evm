@@ -1,10 +1,9 @@
 pub mod constants;
+pub mod shared;
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program;
 use anchor_lang::solana_program::keccak::{
   hash,
-  hashv,
 };
 use constants::{
   ObjType,
@@ -12,8 +11,6 @@ use constants::{
 use std::convert::TryInto;
 
 declare_id!("VT2uRTAsYJRavhAVcvSjk9TzyNeP1ccA6KUUD5JxeHj");
-
-static TOKEN_PROGRAM_ID: Pubkey = Pubkey::new_from_array([6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169]);
 
 #[program]
 mod coin98_vault {
@@ -68,9 +65,9 @@ mod coin98_vault {
     event_id: u64,
     timestamp: i64,
     merkle_root: [u8; 32],
-    receiving_token: Pubkey,
+    receiving_token_mint: Pubkey,
     receiving_token_account: Pubkey,
-    sending_token: Pubkey,
+    sending_token_mint: Pubkey,
     sending_token_account: Pubkey,
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_CreateSchedule");
@@ -85,9 +82,9 @@ mod coin98_vault {
     schedule.event_id = event_id;
     schedule.timestamp = timestamp;
     schedule.merkle_root = merkle_root.try_to_vec().unwrap();
-    schedule.receiving_token = receiving_token;
+    schedule.receiving_token_mint = receiving_token_mint;
     schedule.receiving_token_account = receiving_token_account;
-    schedule.sending_token = sending_token;
+    schedule.sending_token_mint = sending_token_mint;
     schedule.sending_token_account = sending_token_account;
     schedule.is_active = true;
     schedule.redemptions = vec![false; user_count.into()];
@@ -138,13 +135,12 @@ mod coin98_vault {
       return Err(ErrorCode::InvalidSigner.into());
     }
 
-    let instruction = &solana_program::system_instruction::transfer(root_signer.key, recipient.key, amount);
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
       &[signer_nonce],
     ];
-    let result = solana_program::program::invoke_signed(&instruction, &[root_signer.clone(), recipient.clone()], &[&seeds]);
+    let result = shared::transfer_lamports(&root_signer, &recipient, amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -179,25 +175,12 @@ mod coin98_vault {
       return Err(ErrorCode::InvalidSigner.into());
     }
 
-    let data = TransferTokenParams {
-      instruction: 3,
-      amount: amount,
-    };
-    let instruction = solana_program::instruction::Instruction {
-      program_id: *token_program.key,
-      accounts: vec![
-        solana_program::instruction::AccountMeta::new(*sender.key, false),
-        solana_program::instruction::AccountMeta::new(*recipient.key, false),
-        solana_program::instruction::AccountMeta::new_readonly(*root_signer.key, true),
-      ],
-      data: data.try_to_vec().unwrap(),
-    };
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
       &[signer_nonce],
     ];
-    let result = solana_program::program::invoke_signed(&instruction, &[sender.clone(), recipient.clone(), root_signer.clone()], &[&seeds]);
+    let result = shared::transfer_token(&root_signer, &sender, &recipient, amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -220,13 +203,12 @@ mod coin98_vault {
       return Err(ErrorCode::InvalidOwner.into());
     }
 
-    let instruction = &solana_program::system_instruction::transfer(vault_signer.key, recipient.key, amount);
     let seeds: &[&[_]] = &[
       &[2, 151, 229, 53, 244,  77, 229,  7],
       vault.to_account_info().key.as_ref(),
       &[vault.nonce],
     ];
-    let result = solana_program::program::invoke_signed(&instruction, &[vault_signer.clone(), recipient.clone()], &[&seeds]);
+    let result = shared::transfer_lamports(&vault_signer, &recipient, amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -251,25 +233,12 @@ mod coin98_vault {
       return Err(ErrorCode::InvalidOwner.into());
     }
 
-    let data = TransferTokenParams {
-      instruction: 3,
-      amount: amount,
-    };
-    let instruction = solana_program::instruction::Instruction {
-      program_id: *token_program.key,
-      accounts: vec![
-        solana_program::instruction::AccountMeta::new(*sender.key, false),
-        solana_program::instruction::AccountMeta::new(*recipient.key, false),
-        solana_program::instruction::AccountMeta::new_readonly(*vault_signer.key, true),
-      ],
-      data: data.try_to_vec().unwrap(),
-    };
     let seeds: &[&[_]] = &[
       &[2, 151, 229, 53, 244,  77, 229,  7],
       vault.to_account_info().key.as_ref(),
       &[vault.nonce],
     ];
-    let result = solana_program::program::invoke_signed(&instruction, &[sender.clone(), recipient.clone(), vault_signer.clone()], &[&seeds]);
+    let result = shared::transfer_token(&vault_signer, &sender, &recipient, amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -302,7 +271,7 @@ mod coin98_vault {
     let redemption_data = redemption_params.try_to_vec().unwrap();
     let leaf = hash(&redemption_data[..]);
     let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
-    if !verify_proof(proofs, root, leaf.to_bytes()) {
+    if !shared::verify_proof(proofs, root, leaf.to_bytes()) {
       return Err(ErrorCode::Unauthorized.into());
     }
     let inner_seeds: &[&[u8]] = &[
@@ -320,25 +289,12 @@ mod coin98_vault {
     let schedule = &mut ctx.accounts.schedule;
     schedule.redemptions[user_index] = true;
 
-    let data = TransferTokenParams {
-      instruction: 3,
-      amount: receiving_amount,
-    };
-    let instruction = solana_program::instruction::Instruction {
-      program_id: TOKEN_PROGRAM_ID,
-      accounts: vec![
-        solana_program::instruction::AccountMeta::new(*root_token0.key, false),
-        solana_program::instruction::AccountMeta::new(*user_token0.key, false),
-        solana_program::instruction::AccountMeta::new_readonly(*root_signer.key, true),
-      ],
-      data: data.try_to_vec().unwrap(),
-    };
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
       &[signer_nonce],
     ];
-    let result = solana_program::program::invoke_signed(&instruction, &[root_token0.clone(), user_token0.clone(), root_signer.clone()], &[&seeds]);
+    let result = shared::transfer_token(&root_signer, &root_token0, &user_token0, receiving_amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -373,7 +329,7 @@ mod coin98_vault {
     let redemption_data = redemption_params.try_to_vec().unwrap();
     let leaf = hash(&redemption_data[..]);
     let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
-    if !verify_proof(proofs, root, leaf.to_bytes()) {
+    if !shared::verify_proof(proofs, root, leaf.to_bytes()) {
       return Err(ErrorCode::Unauthorized.into());
     }
     let inner_seeds: &[&[u8]] = &[
@@ -391,43 +347,17 @@ mod coin98_vault {
     let schedule = &mut ctx.accounts.schedule;
     schedule.redemptions[user_index] = true;
 
-    let data = TransferTokenParams {
-      instruction: 3,
-      amount: sending_amount,
-    };
-    let instruction = solana_program::instruction::Instruction {
-      program_id: TOKEN_PROGRAM_ID,
-      accounts: vec![
-        solana_program::instruction::AccountMeta::new(*user_token1.key, false),
-        solana_program::instruction::AccountMeta::new(*root_token1.key, false),
-        solana_program::instruction::AccountMeta::new_readonly(*user.key, true),
-      ],
-      data: data.try_to_vec().unwrap(),
-    };
-    let result = solana_program::program::invoke(&instruction, &[user_token1.clone(), root_token1.clone(), user.clone()]);
+    let result = shared::transfer_token(&user, &user_token1, &root_token1, sending_amount, &[]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
 
-    let data = TransferTokenParams {
-      instruction: 3,
-      amount: receiving_amount,
-    };
-    let instruction = solana_program::instruction::Instruction {
-      program_id: TOKEN_PROGRAM_ID,
-      accounts: vec![
-        solana_program::instruction::AccountMeta::new(*root_token0.key, false),
-        solana_program::instruction::AccountMeta::new(*user_token0.key, false),
-        solana_program::instruction::AccountMeta::new_readonly(*root_signer.key, true),
-      ],
-      data: data.try_to_vec().unwrap(),
-    };
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
       &[signer_nonce],
     ];
-    let result = solana_program::program::invoke_signed(&instruction, &[root_token0.clone(), user_token0.clone(), root_signer.clone()], &[&seeds]);
+    let result = shared::transfer_token(&root_signer, &root_token0, &user_token0, receiving_amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -618,9 +548,9 @@ pub struct Schedule {
   pub event_id: u64,
   pub timestamp: i64,
   pub merkle_root: Vec<u8>,
-  pub receiving_token: Pubkey,
+  pub receiving_token_mint: Pubkey,
   pub receiving_token_account: Pubkey,
-  pub sending_token: Pubkey,
+  pub sending_token_mint: Pubkey,
   pub sending_token_account: Pubkey,
   pub is_active: bool,
   pub redemptions: Vec<bool>,
@@ -642,12 +572,6 @@ pub struct RedemptionParams {
   pub sending_amount: u64,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Default)]
-pub struct TransferTokenParams {
-  pub instruction: u8,
-  pub amount: u64,
-}
-
 #[error]
 pub enum ErrorCode {
 
@@ -664,34 +588,6 @@ pub enum ErrorCode {
   Unauthorized,
 }
 
-pub fn transfer_token<'info>(
-  owner: &AccountInfo<'info>,
-  from_pubkey: &AccountInfo<'info>,
-  to_pubkey: &AccountInfo<'info>,
-  amount: u64,
-  signer_seeds: &[&[&[u8]]],
-) -> std::result::Result<(), ProgramError> {
-  let data = TransferTokenParams {
-    instruction: 3,
-    amount: amount,
-  };
-  let instruction = solana_program::instruction::Instruction {
-    program_id: TOKEN_PROGRAM_ID,
-    accounts: vec![
-      solana_program::instruction::AccountMeta::new(*from_pubkey.key, false),
-      solana_program::instruction::AccountMeta::new(*to_pubkey.key, false),
-      solana_program::instruction::AccountMeta::new_readonly(*owner.key, true),
-    ],
-    data: data.try_to_vec().unwrap(),
-  };
-  if signer_seeds.len() == 0 {
-    solana_program::program::invoke(&instruction, &[from_pubkey.clone(), to_pubkey.clone(), owner.clone()])
-  }
-  else {
-    solana_program::program::invoke_signed(&instruction, &[from_pubkey.clone(), to_pubkey.clone(), owner.clone()], &signer_seeds)
-  }
-}
-
 /// Returns true if the user is an admin of a specified vault
 pub fn verify_admin(user: &Pubkey, vault: &Vault) -> bool {
   let result = vault.admins.iter().position(|&key| key == *user);
@@ -703,23 +599,4 @@ pub fn verify_root(user: &Pubkey) -> bool {
   let user_key = user.to_string();
   let result = constants::ROOT_KEYS.iter().position(|&key| key == &user_key[..]);
   result != None
-}
-
-/// Returns true if a `leaf` can be proved to be a part of a Merkle tree
-/// defined by `root`. For this, a `proof` must be provided, containing
-/// sibling hashes on the branch from the leaf to the root of the tree. Each
-/// pair of leaves and each pair of pre-images are assumed to be sorted.
-pub fn verify_proof(proofs: Vec<[u8; 32]>, root: [u8; 32], leaf: [u8; 32]) -> bool {
-  let mut computed_hash = leaf;
-  for proof in proofs.into_iter() {
-    if computed_hash < proof {
-      // Hash(current computed hash + current element of the proof)
-      computed_hash = hashv(&[&computed_hash, &proof]).to_bytes();
-    } else {
-      // Hash(current element of the proof + current computed hash)
-      computed_hash = hashv(&[&proof, &computed_hash]).to_bytes();
-    }
-  }
-  // Check if the computed hash (root) is equal to the provided root
-  computed_hash == root
 }
