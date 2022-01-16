@@ -6,8 +6,8 @@ license = "Apache-2.0"
 edition = "2018"
 
 [dependencies]
-anchor-lang = "0.18.0"
-solana-program = "1.8.0"
+anchor-lang = "0.20.0"
+solana-program = "1.8.5"
 
 [features]
 cpi = ["no-entrypoint"]

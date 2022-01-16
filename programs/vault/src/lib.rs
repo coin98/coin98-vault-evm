@@ -11,7 +11,7 @@ use constants::{
 };
 use std::convert::TryInto;
 
-declare_id!("VT1KksX3ZybQBZNU66FrnuX5MrWZit7Pj1hB9uVXwNL");
+declare_id!("VT2uRTAsYJRavhAVcvSjk9TzyNeP1ccA6KUUD5JxeHj");
 
 static TOKEN_PROGRAM_ID: Pubkey = Pubkey::new_from_array([6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169]);
 
@@ -60,10 +60,10 @@ mod coin98_vault {
     Ok(())
   }
 
-  pub fn create_distribution(
-    ctx: Context<CreateDistributionContext>,
-    _dist_path: Vec<u8>,
-    _dist_nonce: u8,
+  pub fn create_schedule(
+    ctx: Context<CreateScheduleContext>,
+    _sched_path: Vec<u8>,
+    _sched_nonce: u8,
     user_count: u16,
     event_id: u64,
     timestamp: i64,
@@ -73,42 +73,42 @@ mod coin98_vault {
     sending_token: Pubkey,
     sending_token_account: Pubkey,
   ) -> ProgramResult {
-    msg!("Coin98Vault: Instruction_CreateDistribution");
+    msg!("Coin98Vault: Instruction_CreateSchedule");
 
     let root = &ctx.accounts.root;
     if !verify_root(root.key) {
       return Err(ErrorCode::InvalidOwner.into());
     }
 
-    let distribution = &mut ctx.accounts.distribution;
+    let schedule = &mut ctx.accounts.schedule;
 
-    distribution.event_id = event_id;
-    distribution.timestamp = timestamp;
-    distribution.merkle_root = merkle_root.try_to_vec().unwrap();
-    distribution.receiving_token = receiving_token;
-    distribution.receiving_token_account = receiving_token_account;
-    distribution.sending_token = sending_token;
-    distribution.sending_token_account = sending_token_account;
-    distribution.is_active = true;
-    distribution.redemptions = vec![false; user_count.into()];
+    schedule.event_id = event_id;
+    schedule.timestamp = timestamp;
+    schedule.merkle_root = merkle_root.try_to_vec().unwrap();
+    schedule.receiving_token = receiving_token;
+    schedule.receiving_token_account = receiving_token_account;
+    schedule.sending_token = sending_token;
+    schedule.sending_token_account = sending_token_account;
+    schedule.is_active = true;
+    schedule.redemptions = vec![false; user_count.into()];
 
     Ok(())
   }
 
-  pub fn set_distribution_status(
-    ctx: Context<SetDistributionContext>,
+  pub fn set_schedule_status(
+    ctx: Context<SetScheduleContext>,
     is_active: bool,
   ) -> ProgramResult {
-    msg!("Coin98Vault: Instruction_SetDistributionStatus");
+    msg!("Coin98Vault: Instruction_SetScheduleStatus");
 
     let root = &ctx.accounts.root;
     if !verify_root(root.key) {
       return Err(ErrorCode::InvalidOwner.into());
     }
 
-    let distribution = &mut ctx.accounts.distribution;
+    let schedule = &mut ctx.accounts.schedule;
 
-    distribution.is_active = is_active;
+    schedule.is_active = is_active;
 
     Ok(())
   }
@@ -216,7 +216,7 @@ mod coin98_vault {
     let vault_signer = &ctx.accounts.vault_signer;
     let recipient = &ctx.accounts.recipient;
 
-    if !verify_root(owner.key) || !verify_admin(owner.key, &vault) {
+    if !verify_root(owner.key) && !verify_admin(owner.key, &vault) {
       return Err(ErrorCode::InvalidOwner.into());
     }
 
@@ -247,7 +247,7 @@ mod coin98_vault {
     let recipient = &ctx.accounts.recipient;
     let token_program = &ctx.accounts.token_program;
 
-    if !verify_root(owner.key) || !verify_admin(owner.key, &vault) {
+    if !verify_root(owner.key) && !verify_admin(owner.key, &vault) {
       return Err(ErrorCode::InvalidOwner.into());
     }
 
@@ -286,7 +286,7 @@ mod coin98_vault {
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_RedeemToken");
 
-    let distribution = &ctx.accounts.distribution;
+    let schedule = &ctx.accounts.schedule;
     let root_signer = &ctx.accounts.root_signer;
     let root_token0 = &ctx.accounts.root_token0;
     let user = &ctx.accounts.user;
@@ -301,7 +301,7 @@ mod coin98_vault {
     };
     let redemption_data = redemption_params.try_to_vec().unwrap();
     let leaf = hash(&redemption_data[..]);
-    let root: [u8; 32] = distribution.merkle_root.clone().try_into().unwrap();
+    let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
     if !verify_proof(proofs, root, leaf.to_bytes()) {
       return Err(ErrorCode::Unauthorized.into());
     }
@@ -317,8 +317,8 @@ mod coin98_vault {
       return Err(ErrorCode::InvalidSigner.into());
     }
 
-    let distribution = &mut ctx.accounts.distribution;
-    distribution.redemptions[user_index] = true;
+    let schedule = &mut ctx.accounts.schedule;
+    schedule.redemptions[user_index] = true;
 
     let data = TransferTokenParams {
       instruction: 3,
@@ -355,7 +355,7 @@ mod coin98_vault {
   ) -> ProgramResult {
     msg!("Coin98Vault: Instruction_RedeemToken");
 
-    let distribution = &ctx.accounts.distribution;
+    let schedule = &ctx.accounts.schedule;
     let root_signer = &ctx.accounts.root_signer;
     let root_token0 = &ctx.accounts.root_token0;
     let root_token1 = &ctx.accounts.root_token1;
@@ -372,7 +372,7 @@ mod coin98_vault {
     };
     let redemption_data = redemption_params.try_to_vec().unwrap();
     let leaf = hash(&redemption_data[..]);
-    let root: [u8; 32] = distribution.merkle_root.clone().try_into().unwrap();
+    let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
     if !verify_proof(proofs, root, leaf.to_bytes()) {
       return Err(ErrorCode::Unauthorized.into());
     }
@@ -388,8 +388,8 @@ mod coin98_vault {
       return Err(ErrorCode::InvalidSigner.into());
     }
 
-    let distribution = &mut ctx.accounts.distribution;
-    distribution.redemptions[user_index] = true;
+    let schedule = &mut ctx.accounts.schedule;
+    schedule.redemptions[user_index] = true;
 
     let data = TransferTokenParams {
       instruction: 3,
@@ -465,18 +465,17 @@ pub struct SetVaultContext<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(dist_path: Vec<u8>, dist_nonce: u8, _signer_nonce: u8, user_count: u16)]
-pub struct CreateDistributionContext<'info> {
+#[instruction(sched_path: Vec<u8>, sched_nonce: u8, user_count: u16)]
+pub struct CreateScheduleContext<'info> {
 
   #[account(signer)]
   pub root: AccountInfo<'info>,
 
   #[account(init, seeds = [
-    &[93, 85, 196,  21, 227, 86, 221, 123],
-    &[128, 1, 194, 116, 57, 101, 12, 92],
-    &*dist_path,
-  ], bump = dist_nonce, payer = root, space = 202usize + usize::from(user_count))]
-  pub distribution: Account<'info, Distribution>,
+    &[244, 131, 10, 29, 174, 41, 128, 68],
+    &*sched_path,
+  ], bump = sched_nonce, payer = root, space = 202usize + usize::from(user_count))]
+  pub schedule: Account<'info, Schedule>,
 
   pub rent: Sysvar<'info, Rent>,
 
@@ -484,13 +483,13 @@ pub struct CreateDistributionContext<'info> {
 }
 
 #[derive(Accounts)]
-pub struct SetDistributionContext<'info> {
+pub struct SetScheduleContext<'info> {
 
   #[account(signer)]
   pub root: AccountInfo<'info>,
 
   #[account(mut)]
-  pub distribution: Account<'info, Vault>,
+  pub schedule: Account<'info, Schedule>,
 }
 
 #[derive(Accounts)]
@@ -572,7 +571,7 @@ pub struct WithdrawVaultTokenContext<'info> {
 pub struct RedeemTokenContext<'info> {
 
   #[account(mut)]
-  pub distribution: Account<'info, Distribution>,
+  pub schedule: Account<'info, Schedule>,
 
   pub root_signer: AccountInfo<'info>,
 
@@ -591,7 +590,7 @@ pub struct RedeemTokenContext<'info> {
 pub struct RedeemTokenWithFeeContext<'info> {
 
   #[account(mut)]
-  pub distribution: Account<'info, Distribution>,
+  pub schedule: Account<'info, Schedule>,
 
   pub root_signer: AccountInfo<'info>,
 
@@ -614,7 +613,7 @@ pub struct RedeemTokenWithFeeContext<'info> {
 }
 
 #[account]
-pub struct Distribution {
+pub struct Schedule {
   pub obj_type: ObjType,
   pub event_id: u64,
   pub timestamp: i64,
@@ -665,16 +664,44 @@ pub enum ErrorCode {
   Unauthorized,
 }
 
-/// Returns true if the user has root priviledge of the contract
-pub fn verify_root(user: &Pubkey) -> bool {
-  let user_key = user.to_string();
-  let result = constants::ROOT_KEYS.iter().position(|&key| key == &user_key[..]);
-  result != None
+pub fn transfer_token<'info>(
+  owner: &AccountInfo<'info>,
+  from_pubkey: &AccountInfo<'info>,
+  to_pubkey: &AccountInfo<'info>,
+  amount: u64,
+  signer_seeds: &[&[&[u8]]],
+) -> std::result::Result<(), ProgramError> {
+  let data = TransferTokenParams {
+    instruction: 3,
+    amount: amount,
+  };
+  let instruction = solana_program::instruction::Instruction {
+    program_id: TOKEN_PROGRAM_ID,
+    accounts: vec![
+      solana_program::instruction::AccountMeta::new(*from_pubkey.key, false),
+      solana_program::instruction::AccountMeta::new(*to_pubkey.key, false),
+      solana_program::instruction::AccountMeta::new_readonly(*owner.key, true),
+    ],
+    data: data.try_to_vec().unwrap(),
+  };
+  if signer_seeds.len() == 0 {
+    solana_program::program::invoke(&instruction, &[from_pubkey.clone(), to_pubkey.clone(), owner.clone()])
+  }
+  else {
+    solana_program::program::invoke_signed(&instruction, &[from_pubkey.clone(), to_pubkey.clone(), owner.clone()], &signer_seeds)
+  }
 }
 
 /// Returns true if the user is an admin of a specified vault
 pub fn verify_admin(user: &Pubkey, vault: &Vault) -> bool {
   let result = vault.admins.iter().position(|&key| key == *user);
+  result != None
+}
+
+/// Returns true if the user has root priviledge of the contract
+pub fn verify_root(user: &Pubkey) -> bool {
+  let user_key = user.to_string();
+  let result = constants::ROOT_KEYS.iter().position(|&key| key == &user_key[..]);
   result != None
 }
 
