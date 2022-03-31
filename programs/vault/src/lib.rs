@@ -323,7 +323,7 @@ mod coin98_vault {
     receiving_amount: u64,
     sending_amount: u64,
   ) -> ProgramResult {
-    msg!("Coin98Vault: Instruction_RedeemToken");
+    msg!("Coin98Vault: Instruction_RedeemTokenWithFee");
 
     let schedule = &ctx.accounts.schedule;
     let root_signer = &ctx.accounts.root_signer;
