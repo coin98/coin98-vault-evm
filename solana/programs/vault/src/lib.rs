@@ -226,7 +226,7 @@ mod coin98_vault {
     let root_token0 = &ctx.accounts.root_token0;
     let user = &ctx.accounts.user;
     let user_token0 = &ctx.accounts.user_token0;
-    let clock = &ctx.accounts.clock;
+    let clock = Clock::get().unwrap();
     let user_index: usize = index.into();
 
     if !schedule.is_active {
@@ -302,7 +302,7 @@ mod coin98_vault {
     let user = &ctx.accounts.user;
     let user_token0 = &ctx.accounts.user_token0;
     let user_token1 = &ctx.accounts.user_token1;
-    let clock = &ctx.accounts.clock;
+    let clock = Clock::get().unwrap();
     let user_index: usize = index.into();
 
     if !schedule.is_active {
@@ -387,6 +387,10 @@ pub struct CreateVaultContext<'info> {
   )]
   pub vault: Account<'info, Vault>,
 
+  /// CHECK: Solana native System Program
+  #[account(
+    constraint = shared::is_system_program(&system_program)
+  )]
   pub system_program: AccountInfo<'info>,
 }
 
@@ -421,6 +425,10 @@ pub struct CreateScheduleContext<'info> {
   )]
   pub schedule: Account<'info, Schedule>,
 
+  /// CHECK: Solana native System Program
+  #[account(
+    constraint = shared::is_system_program(&system_program)
+  )]
   pub system_program: AccountInfo<'info>,
 }
 
@@ -442,12 +450,18 @@ pub struct WithdrawSolContext<'info> {
   #[account(signer)]
   pub root: AccountInfo<'info>,
 
+  /// CHECK: PDA to hold program's assets
   #[account(mut)]
   pub root_signer: AccountInfo<'info>,
 
+  /// CHECK: User account to receive SOL
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
+  /// CHECK: Solana native System Program
+  #[account(
+    constraint = shared::is_system_program(&system_program)
+  )]
   pub system_program: AccountInfo<'info>,
 }
 
@@ -458,6 +472,7 @@ pub struct WithdrawTokenContext<'info> {
   #[account(signer)]
   pub root: AccountInfo<'info>,
 
+  /// CHECK: PDA to hold program's assets
   pub root_signer: AccountInfo<'info>,
 
   #[account(mut)]
@@ -466,6 +481,10 @@ pub struct WithdrawTokenContext<'info> {
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
+  /// CHECK: Solana native Token Program
+  #[account(
+    constraint = shared::is_token_program(&token_program)
+  )]
   pub token_program: AccountInfo<'info>,
 }
 
@@ -478,6 +497,7 @@ pub struct WithdrawVaultSolContext<'info> {
 
   pub vault: Account<'info, Vault>,
 
+  /// CHECK: PDA to hold vault's assets
   #[account(
     mut,
     seeds = [
@@ -491,6 +511,10 @@ pub struct WithdrawVaultSolContext<'info> {
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
+  /// CHECK: Solana native System Program
+  #[account(
+    constraint = shared::is_system_program(&system_program)
+  )]
   pub system_program: AccountInfo<'info>,
 }
 
@@ -503,6 +527,7 @@ pub struct WithdrawVaultTokenContext<'info> {
 
   pub vault: Account<'info, Vault>,
 
+  /// CHECK: PDA to hold vault's assets
   #[account(
     seeds = [
       &[2, 151, 229, 53, 244,  77, 229,  7],
@@ -518,6 +543,10 @@ pub struct WithdrawVaultTokenContext<'info> {
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
+  /// CHECK: Solana native Token Program
+  #[account(
+    constraint = shared::is_token_program(&token_program)
+  )]
   pub token_program: AccountInfo<'info>,
 }
 
@@ -527,19 +556,23 @@ pub struct RedeemTokenContext<'info> {
   #[account(mut)]
   pub schedule: Account<'info, Schedule>,
 
+  /// CHECK: PDA to hold program's assets
   pub root_signer: AccountInfo<'info>,
 
   #[account(mut)]
   pub root_token0: AccountInfo<'info>,
 
+  /// CHECK: User account eligible to redeem token
   pub user: AccountInfo<'info>,
 
   #[account(mut)]
   pub user_token0: AccountInfo<'info>,
 
+  /// CHECK: Solana native Token Program
+  #[account(
+    constraint = shared::is_token_program(&token_program)
+  )]
   pub token_program: AccountInfo<'info>,
-
-  pub clock: Sysvar<'info, Clock>,
 }
 
 #[derive(Accounts)]
@@ -548,6 +581,7 @@ pub struct RedeemTokenWithFeeContext<'info> {
   #[account(mut)]
   pub schedule: Account<'info, Schedule>,
 
+  /// CHECK: PDA to hold program's assets
   pub root_signer: AccountInfo<'info>,
 
   #[account(mut)]
@@ -556,6 +590,7 @@ pub struct RedeemTokenWithFeeContext<'info> {
   #[account(mut)]
   pub root_token1: AccountInfo<'info>,
 
+  /// CHECK: User account eligible to redeem token
   #[account(signer)]
   pub user: AccountInfo<'info>,
 
@@ -565,9 +600,11 @@ pub struct RedeemTokenWithFeeContext<'info> {
   #[account(mut)]
   pub user_token1: AccountInfo<'info>,
 
+  /// CHECK: Solana native Token Program
+  #[account(
+    constraint = shared::is_token_program(&token_program)
+  )]
   pub token_program: AccountInfo<'info>,
-
-  pub clock: Sysvar<'info, Clock>,
 }
 
 #[account]

@@ -5,6 +5,15 @@ use anchor_lang::solana_program::keccak::{
 
 static TOKEN_PROGRAM_ID: Pubkey = Pubkey::new_from_array([6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169]);
 
+pub fn is_system_program<'a>(account: &AccountInfo<'a>) -> bool {
+  *account.key == anchor_lang::system_program::ID
+}
+
+pub fn is_token_program<'a>(account: &AccountInfo<'a>) -> bool {
+  *account.key == TOKEN_PROGRAM_ID
+}
+
+
 pub fn transfer_lamports<'info>(
   from_pubkey: &AccountInfo<'info>,
   to_pubkey: &AccountInfo<'info>,
@@ -72,4 +81,3 @@ pub struct TransferTokenParams {
   pub instruction: u8,
   pub amount: u64,
 }
-
