@@ -106,14 +106,10 @@ mod coin98_vault {
       &[2, 151, 229, 53, 244, 77, 229, 7],
       &[128, 1, 194, 116, 57, 101, 12, 92],
     ];
-    let (signer_address, signer_nonce) = Pubkey::find_program_address(
+    let (_, signer_nonce) = Pubkey::find_program_address(
       &inner_seeds,
       ctx.program_id,
     );
-    if *root_signer.key != signer_address {
-      return Err(ErrorCode::InvalidSigner.into());
-    }
-
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
@@ -142,14 +138,10 @@ mod coin98_vault {
       &[2, 151, 229, 53, 244, 77, 229, 7],
       &[128, 1, 194, 116, 57, 101, 12, 92],
     ];
-    let (signer_address, signer_nonce) = Pubkey::find_program_address(
+    let (_, signer_nonce) = Pubkey::find_program_address(
       &inner_seeds,
       ctx.program_id,
     );
-    if *root_signer.key != signer_address {
-      return Err(ErrorCode::InvalidSigner.into());
-    }
-
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
@@ -212,6 +204,15 @@ mod coin98_vault {
     Ok(())
   }
 
+  #[access_control(verify_schedule(&ctx.accounts.schedule))]
+  #[access_control(verify_proof(
+    index,
+    &ctx.accounts.user.key,
+    receiving_amount,
+    sending_amount,
+    &proofs,
+    &ctx.accounts.schedule
+  ))]
   pub fn redeem_token(
     ctx: Context<RedeemTokenContext>,
     index: u16,
@@ -224,55 +225,24 @@ mod coin98_vault {
     let schedule = &ctx.accounts.schedule;
     let root_signer = &ctx.accounts.root_signer;
     let root_token0 = &ctx.accounts.root_token0;
-    let user = &ctx.accounts.user;
     let user_token0 = &ctx.accounts.user_token0;
-    let clock = Clock::get().unwrap();
-    let user_index: usize = index.into();
 
-    if !schedule.is_active {
-      return Err(ErrorCode::ScheduleUnavailable.into());
-    }
-    if clock.unix_timestamp < schedule.timestamp {
-      return Err(ErrorCode::ScheduleLocked.into());
-    }
-
-    let redemption_params = RedemptionParams {
-      index: index,
-      address: *user.key,
-      receiving_amount: receiving_amount,
-      sending_amount: sending_amount,
-    };
-    let redemption_data = redemption_params.try_to_vec().unwrap();
-    let leaf = hash(&redemption_data[..]);
-    let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
-    if !shared::verify_proof(proofs, root, leaf.to_bytes()) {
-      return Err(ErrorCode::Unauthorized.into());
-    }
-    if schedule.redemptions[user_index] {
-      return Err(ErrorCode::Redeemed.into());
-    }
-    let inner_seeds: &[&[u8]] = &[
-      &[2, 151, 229, 53, 244, 77, 229, 7],
-      &[128, 1, 194, 116, 57, 101, 12, 92],
-    ];
-    let (signer_address, signer_nonce) = Pubkey::find_program_address(
-      &inner_seeds,
-      ctx.program_id,
-    );
-
-    if *root_signer.key != signer_address {
-      return Err(ErrorCode::InvalidSigner.into());
-    }
-    if *root_token0.key != schedule.receiving_token_account {
-      return Err(ErrorCode::InvalidTokenAccount.into());
-    }
     if schedule.sending_token_mint != solana_program::system_program::ID && sending_amount > 0 {
       return Err(ErrorCode::FeeRequired.into());
     }
 
     let schedule = &mut ctx.accounts.schedule;
+    let user_index: usize = index.into();
     schedule.redemptions[user_index] = true;
 
+    let inner_seeds: &[&[u8]] = &[
+      &[2, 151, 229, 53, 244, 77, 229, 7],
+      &[128, 1, 194, 116, 57, 101, 12, 92],
+    ];
+    let (_, signer_nonce) = Pubkey::find_program_address(
+      &inner_seeds,
+      ctx.program_id,
+    );
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
@@ -286,6 +256,15 @@ mod coin98_vault {
     Ok(())
   }
 
+  #[access_control(verify_schedule(&ctx.accounts.schedule))]
+  #[access_control(verify_proof(
+    index,
+    &ctx.accounts.user.key,
+    receiving_amount,
+    sending_amount,
+    &proofs,
+    &ctx.accounts.schedule
+  ))]
   pub fn redeem_token_with_fee(
     ctx: Context<RedeemTokenWithFeeContext>,
     index: u16,
@@ -295,57 +274,15 @@ mod coin98_vault {
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_RedeemTokenWithFee");
 
-    let schedule = &ctx.accounts.schedule;
     let root_signer = &ctx.accounts.root_signer;
     let root_token0 = &ctx.accounts.root_token0;
     let root_token1 = &ctx.accounts.root_token1;
     let user = &ctx.accounts.user;
     let user_token0 = &ctx.accounts.user_token0;
     let user_token1 = &ctx.accounts.user_token1;
-    let clock = Clock::get().unwrap();
-    let user_index: usize = index.into();
-
-    if !schedule.is_active {
-      return Err(ErrorCode::ScheduleUnavailable.into());
-    }
-    if clock.unix_timestamp < schedule.timestamp {
-      return Err(ErrorCode::ScheduleLocked.into());
-    }
-
-    let redemption_params = RedemptionParams {
-      index: index,
-      address: *user.key,
-      receiving_amount: receiving_amount,
-      sending_amount: sending_amount,
-    };
-    let redemption_data = redemption_params.try_to_vec().unwrap();
-    let leaf = hash(&redemption_data[..]);
-    let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
-    if !shared::verify_proof(proofs, root, leaf.to_bytes()) {
-      return Err(ErrorCode::Unauthorized.into());
-    }
-    if schedule.redemptions[user_index] {
-      return Err(ErrorCode::Redeemed.into());
-    }
-    let inner_seeds: &[&[u8]] = &[
-      &[2, 151, 229, 53, 244, 77, 229, 7],
-      &[128, 1, 194, 116, 57, 101, 12, 92],
-    ];
-    let (signer_address, signer_nonce) = Pubkey::find_program_address(
-      &inner_seeds,
-      ctx.program_id,
-    );
-    if *root_signer.key != signer_address {
-      return Err(ErrorCode::InvalidSigner.into());
-    }
-    if *root_token0.key != schedule.receiving_token_account {
-      return Err(ErrorCode::InvalidTokenAccount.into());
-    }
-    if *root_token1.key != schedule.sending_token_account {
-      return Err(ErrorCode::InvalidTokenAccount.into());
-    }
 
     let schedule = &mut ctx.accounts.schedule;
+    let user_index: usize = index.into();
     schedule.redemptions[user_index] = true;
 
     let result = shared::transfer_token(&user, &user_token1, &root_token1, sending_amount, &[]);
@@ -353,6 +290,14 @@ mod coin98_vault {
       return Err(ErrorCode::TransactionFailed.into());
     }
 
+    let inner_seeds: &[&[u8]] = &[
+      &[2, 151, 229, 53, 244, 77, 229, 7],
+      &[128, 1, 194, 116, 57, 101, 12, 92],
+    ];
+    let (_, signer_nonce) = Pubkey::find_program_address(
+      &inner_seeds,
+      ctx.program_id,
+    );
     let seeds: &[&[_]] = &[
       &inner_seeds[0],
       &inner_seeds[1],
@@ -389,7 +334,7 @@ pub struct CreateVaultContext<'info> {
 
   /// CHECK: Solana native System Program
   #[account(
-    constraint = shared::is_system_program(&system_program)
+    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
   )]
   pub system_program: AccountInfo<'info>,
 }
@@ -427,7 +372,7 @@ pub struct CreateScheduleContext<'info> {
 
   /// CHECK: Solana native System Program
   #[account(
-    constraint = shared::is_system_program(&system_program)
+    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
   )]
   pub system_program: AccountInfo<'info>,
 }
@@ -451,7 +396,10 @@ pub struct WithdrawSolContext<'info> {
   pub root: AccountInfo<'info>,
 
   /// CHECK: PDA to hold program's assets
-  #[account(mut)]
+  #[account(
+    mut,
+    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
+  )]
   pub root_signer: AccountInfo<'info>,
 
   /// CHECK: User account to receive SOL
@@ -460,7 +408,7 @@ pub struct WithdrawSolContext<'info> {
 
   /// CHECK: Solana native System Program
   #[account(
-    constraint = shared::is_system_program(&system_program)
+    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
   )]
   pub system_program: AccountInfo<'info>,
 }
@@ -473,17 +421,22 @@ pub struct WithdrawTokenContext<'info> {
   pub root: AccountInfo<'info>,
 
   /// CHECK: PDA to hold program's assets
+  #[account(
+    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
+  )]
   pub root_signer: AccountInfo<'info>,
 
+  /// CHECK: Program's TokenAccount
   #[account(mut)]
   pub sender: AccountInfo<'info>,
 
+  /// CHECK: Destination token account
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program)
+    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
   )]
   pub token_program: AccountInfo<'info>,
 }
@@ -508,12 +461,13 @@ pub struct WithdrawVaultSolContext<'info> {
   )]
   pub vault_signer: AccountInfo<'info>,
 
+  /// CHECK: Destination SOL account
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
   /// CHECK: Solana native System Program
   #[account(
-    constraint = shared::is_system_program(&system_program)
+    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
   )]
   pub system_program: AccountInfo<'info>,
 }
@@ -537,15 +491,17 @@ pub struct WithdrawVaultTokenContext<'info> {
   )]
   pub vault_signer: AccountInfo<'info>,
 
+  /// CHECK: Vault's TokenAccount for distribution
   #[account(mut)]
   pub sender: AccountInfo<'info>,
 
+  /// CHECK: Destination token account
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program)
+    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
   )]
   pub token_program: AccountInfo<'info>,
 }
@@ -557,20 +513,29 @@ pub struct RedeemTokenContext<'info> {
   pub schedule: Account<'info, Schedule>,
 
   /// CHECK: PDA to hold program's assets
+  #[account(
+    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
+  )]
   pub root_signer: AccountInfo<'info>,
 
-  #[account(mut)]
+  /// CHECK: Program's TokenAccount for distribution
+  #[account(
+    mut,
+    constraint = *root_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
+  )]
   pub root_token0: AccountInfo<'info>,
 
-  /// CHECK: User account eligible to redeem token
+  /// CHECK: User account eligible to redeem token. Must sign to provide proof of redemption
+  #[account(signer)]
   pub user: AccountInfo<'info>,
 
+  /// CHECK: User account to receive token
   #[account(mut)]
   pub user_token0: AccountInfo<'info>,
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program)
+    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
   )]
   pub token_program: AccountInfo<'info>,
 }
@@ -582,27 +547,40 @@ pub struct RedeemTokenWithFeeContext<'info> {
   pub schedule: Account<'info, Schedule>,
 
   /// CHECK: PDA to hold program's assets
+  #[account(
+    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
+  )]
   pub root_signer: AccountInfo<'info>,
 
-  #[account(mut)]
+  /// CHECK: Program's TokenAccount for distribution
+  #[account(
+    mut,
+    constraint = *root_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
+  )]
   pub root_token0: AccountInfo<'info>,
 
-  #[account(mut)]
+  /// CHECK: Program's TokenAccount for collecting fee
+  #[account(
+    mut,
+    constraint = *root_token1.key == schedule.sending_token_account @ErrorCode::InvalidTokenAccount
+  )]
   pub root_token1: AccountInfo<'info>,
 
-  /// CHECK: User account eligible to redeem token
+  /// CHECK: User account eligible to redeem token. Must sign to provide proof of redemption
   #[account(signer)]
   pub user: AccountInfo<'info>,
 
+  /// CHECK: User account to receive token
   #[account(mut)]
   pub user_token0: AccountInfo<'info>,
 
+  /// CHECK: User account to send token
   #[account(mut)]
   pub user_token1: AccountInfo<'info>,
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program)
+    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
   )]
   pub token_program: AccountInfo<'info>,
 }
@@ -613,8 +591,10 @@ pub struct Schedule {
   pub event_id: u64,
   pub timestamp: i64,
   pub merkle_root: Vec<u8>,
+  // receiving_token: Type of the token user will redeem
   pub receiving_token_mint: Pubkey,
   pub receiving_token_account: Pubkey,
+  // sending_token: Type of the token maybe required to send as a fee for redemption
   pub sending_token_mint: Pubkey,
   pub sending_token_account: Pubkey,
   pub is_active: bool,
@@ -641,6 +621,9 @@ pub enum ErrorCode {
 
   #[msg("Coin98Vault: Fee required.")]
   FeeRequired,
+
+  #[msg("Coin98Vault: Invalid account")]
+  InvalidAccount,
 
   #[msg("Coin98Vault: Not an owner.")]
   InvalidOwner,
@@ -678,6 +661,40 @@ pub fn verify_admin(user: &Pubkey, vault: &Vault) -> Result<()> {
   let result = vault.admins.iter().position(|&key| key == *user);
   if result == None {
     return Err(ErrorCode::InvalidOwner.into());
+  }
+
+  Ok(())
+}
+
+pub fn verify_schedule(schedule: &Schedule) -> Result<()> {
+  let clock = Clock::get().unwrap();
+  if !schedule.is_active {
+    return Err(ErrorCode::ScheduleUnavailable.into());
+  }
+  if clock.unix_timestamp < schedule.timestamp {
+    return Err(ErrorCode::ScheduleLocked.into());
+  }
+
+  Ok(())
+}
+
+pub fn verify_proof(index: u16, user: &Pubkey, receiving_amount: u64, sending_amount: u64, proofs: &Vec<[u8; 32]>, schedule: &Schedule) -> Result<()> {
+  let redemption_params = RedemptionParams {
+    index: index,
+    address: *user,
+    receiving_amount: receiving_amount,
+    sending_amount: sending_amount,
+  };
+  let redemption_data = redemption_params.try_to_vec().unwrap();
+  let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
+  let leaf = hash(&redemption_data[..]);
+  if !shared::verify_proof(proofs.to_vec(), root, leaf.to_bytes()) {
+    return Err(ErrorCode::Unauthorized.into());
+  }
+
+  let user_index: usize = index.into();
+  if schedule.redemptions[user_index] {
+    return Err(ErrorCode::Redeemed.into());
   }
 
   Ok(())
