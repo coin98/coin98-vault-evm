@@ -20,7 +20,6 @@ mod coin98_vault {
   pub fn create_vault(
     ctx: Context<CreateVaultContext>,
     _vault_path: Vec<u8>,
-    _vault_nonce: u8,
     signer_nonce: u8,
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_CreateVault");
@@ -28,7 +27,7 @@ mod coin98_vault {
     let vault = &mut ctx.accounts.vault;
 
     vault.obj_type = ObjType::Vault;
-    vault.nonce = signer_nonce;
+    vault.signer_nonce = signer_nonce;
 
     Ok(())
   }
@@ -51,7 +50,6 @@ mod coin98_vault {
   pub fn create_schedule(
     ctx: Context<CreateScheduleContext>,
     _sched_path: Vec<u8>,
-    _sched_nonce: u8,
     user_count: u16,
     event_id: u64,
     timestamp: i64,
@@ -169,7 +167,7 @@ mod coin98_vault {
     let seeds: &[&[_]] = &[
       &[2, 151, 229, 53, 244,  77, 229,  7],
       vault.to_account_info().key.as_ref(),
-      &[vault.nonce],
+      &[vault.signer_nonce],
     ];
     let result = shared::transfer_lamports(&vault_signer, &recipient, amount, &[&seeds]);
     if result.is_err() {
@@ -194,7 +192,7 @@ mod coin98_vault {
     let seeds: &[&[_]] = &[
       &[2, 151, 229, 53, 244,  77, 229,  7],
       vault.to_account_info().key.as_ref(),
-      &[vault.nonce],
+      &[vault.signer_nonce],
     ];
     let result = shared::transfer_token(&vault_signer, &sender, &recipient, amount, &[&seeds]);
     if result.is_err() {
@@ -313,7 +311,7 @@ mod coin98_vault {
 }
 
 #[derive(Accounts)]
-#[instruction(vault_path: Vec<u8>, _vault_nonce: u8, _signer_nonce: u8)]
+#[instruction(vault_path: Vec<u8>)]
 pub struct CreateVaultContext<'info> {
 
   /// CHECK: program owner, verified using #access_control
@@ -332,11 +330,7 @@ pub struct CreateVaultContext<'info> {
   )]
   pub vault: Account<'info, Vault>,
 
-  /// CHECK: Solana native System Program
-  #[account(
-    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
-  )]
-  pub system_program: AccountInfo<'info>,
+  pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -351,7 +345,7 @@ pub struct SetVaultContext<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(schedule_path: Vec<u8>, _schedule_nonce: u8, user_count: u16)]
+#[instruction(schedule_path: Vec<u8>, user_count: u16)]
 pub struct CreateScheduleContext<'info> {
 
   /// CHECK: program owner, verified using #access_control
@@ -370,11 +364,7 @@ pub struct CreateScheduleContext<'info> {
   )]
   pub schedule: Account<'info, Schedule>,
 
-  /// CHECK: Solana native System Program
-  #[account(
-    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
-  )]
-  pub system_program: AccountInfo<'info>,
+  pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -406,11 +396,7 @@ pub struct WithdrawSolContext<'info> {
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
-  /// CHECK: Solana native System Program
-  #[account(
-    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
-  )]
-  pub system_program: AccountInfo<'info>,
+  pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -457,7 +443,7 @@ pub struct WithdrawVaultSolContext<'info> {
       &[2, 151, 229, 53, 244,  77, 229,  7],
       vault.to_account_info().key.as_ref(),
     ],
-    bump = vault.nonce
+    bump = vault.signer_nonce
   )]
   pub vault_signer: AccountInfo<'info>,
 
@@ -465,11 +451,7 @@ pub struct WithdrawVaultSolContext<'info> {
   #[account(mut)]
   pub recipient: AccountInfo<'info>,
 
-  /// CHECK: Solana native System Program
-  #[account(
-    constraint = shared::is_system_program(&system_program) @ErrorCode::InvalidAccount
-  )]
-  pub system_program: AccountInfo<'info>,
+  pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -487,7 +469,7 @@ pub struct WithdrawVaultTokenContext<'info> {
       &[2, 151, 229, 53, 244,  77, 229,  7],
       vault.to_account_info().key.as_ref(),
     ],
-    bump = vault.nonce
+    bump = vault.signer_nonce
   )]
   pub vault_signer: AccountInfo<'info>,
 
@@ -604,7 +586,7 @@ pub struct Schedule {
 #[account]
 pub struct Vault {
   pub obj_type: ObjType,
-  pub nonce: u8,
+  pub signer_nonce: u8,
   pub admins: Vec<Pubkey>,
 }
 
