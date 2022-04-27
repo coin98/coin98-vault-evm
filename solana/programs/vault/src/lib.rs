@@ -30,7 +30,7 @@ mod coin98_vault {
     vault.obj_type = ObjType::Vault;
     vault.signer_nonce = signer_nonce;
     vault.owner = *owner.key;
-    vault.new_owner = ctx.program_id;
+    vault.new_owner = anchor_lang::system_program::ID; // Set to empty
 
     Ok(())
   }
@@ -234,6 +234,34 @@ mod coin98_vault {
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
+
+    Ok(())
+  }
+
+  #[access_control(verify_owner(&ctx.accounts.owner.key, &ctx.accounts.vault))]
+  pub fn transfer_ownership(
+    ctx: Context<TransferOwnershipContext>,
+    new_owner: Pubkey,
+  ) -> Result<()> {
+    msg!("Coin98Vault: Instruction_TransferOwnership");
+
+    let vault = &mut ctx.accounts.vault;
+
+    vault.new_owner = new_owner;
+
+    Ok(())
+  }
+
+  #[access_control(verify_new_owner(&ctx.accounts.new_owner.key, &ctx.accounts.vault))]
+  pub fn accept_ownership(
+    ctx: Context<AcceptOwnershipContext>,
+  ) -> Result<()> {
+    msg!("Coin98Vault: Instruction_AcceptOwnership");
+
+    let vault = &mut ctx.accounts.vault;
+
+    vault.owner = vault.new_owner;
+    vault.new_owner = anchor_lang::system_program::ID; // Set to empty
 
     Ok(())
   }
@@ -472,6 +500,28 @@ pub struct RedeemTokenWithFeeContext<'info> {
   pub token_program: AccountInfo<'info>,
 }
 
+#[derive(Accounts)]
+pub struct TransferOwnershipContext<'info> {
+
+  /// CHECK: vault owner, verified using #access_control
+    #[account(signer)]
+    pub owner: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub vault: Account<'info, Vault>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptOwnershipContext<'info> {
+
+  /// CHECK: new vault owner, verified using #access_control
+    #[account(signer)]
+    pub new_owner: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub vault: Account<'info, Vault>,
+}
+
 #[account]
 pub struct Schedule {
   pub obj_type: ObjType,
@@ -555,6 +605,15 @@ pub enum ErrorCode {
 /// Returns true if the user has root priviledge of the vault
 pub fn verify_owner(user: &Pubkey, vault: &Vault) -> Result<()> {
   if *user != vault.owner {
+    return Err(ErrorCode::InvalidOwner.into());
+  }
+
+  Ok(())
+}
+
+/// Returns true if the user is the newly apppointed owner of the vault
+pub fn verify_new_owner(user: &Pubkey, vault: &Vault) -> Result<()> {
+  if *user != vault.new_owner {
     return Err(ErrorCode::InvalidOwner.into());
   }
 
