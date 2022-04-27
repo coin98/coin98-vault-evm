@@ -2,20 +2,9 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::keccak::{
   hashv,
 };
+use std::convert::TryInto;
 
 static TOKEN_PROGRAM_ID: Pubkey = Pubkey::new_from_array([6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169]);
-
-pub fn is_root_signer<'a>(account: &AccountInfo<'a>, program_id: &Pubkey) -> bool {
-  let inner_seeds: &[&[u8]] = &[
-    &[2, 151, 229, 53, 244, 77, 229, 7],
-    &[128, 1, 194, 116, 57, 101, 12, 92],
-  ];
-  let (signer_address, _) = Pubkey::find_program_address(
-    &inner_seeds,
-    &program_id,
-  );
-  *account.key == signer_address
-}
 
 pub fn is_system_program<'a>(account: &AccountInfo<'a>) -> bool {
   *account.key == anchor_lang::system_program::ID
@@ -25,6 +14,14 @@ pub fn is_token_program<'a>(account: &AccountInfo<'a>) -> bool {
   *account.key == TOKEN_PROGRAM_ID
 }
 
+pub fn derive_event_id(event_id: u64) -> [u8; 8] {
+  let data = DeriveEventIdParam {
+    event_id: event_id,
+  };
+  let vec = data.try_to_vec().unwrap();
+  let arr: [u8; 8] = vec.try_into().unwrap();
+  arr
+}
 
 pub fn transfer_lamports<'info>(
   from_pubkey: &AccountInfo<'info>,
@@ -86,6 +83,11 @@ pub fn verify_proof(proofs: Vec<[u8; 32]>, root: [u8; 32], leaf: [u8; 32]) -> bo
   }
   // Check if the computed hash (root) is equal to the provided root
   computed_hash == root
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Default)]
+pub struct DeriveEventIdParam {
+  pub event_id: u64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]

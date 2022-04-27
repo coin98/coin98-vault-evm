@@ -16,7 +16,6 @@ declare_id!("VT2uRTAsYJRavhAVcvSjk9TzyNeP1ccA6KUUD5JxeHj");
 mod coin98_vault {
   use super::*;
 
-  #[access_control(verify_root(&ctx.accounts.root.key))]
   pub fn create_vault(
     ctx: Context<CreateVaultContext>,
     _vault_path: Vec<u8>,
@@ -24,15 +23,19 @@ mod coin98_vault {
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_CreateVault");
 
+    let owner = &ctx.accounts.owner;
+
     let vault = &mut ctx.accounts.vault;
 
     vault.obj_type = ObjType::Vault;
     vault.signer_nonce = signer_nonce;
+    vault.owner = *owner.key;
+    vault.new_owner = ctx.program_id;
 
     Ok(())
   }
 
-  #[access_control(verify_root(&ctx.accounts.root.key))]
+  #[access_control(verify_owner(&ctx.accounts.owner.key, &ctx.accounts.vault))]
   pub fn set_vault(
     ctx: Context<SetVaultContext>,
     admins: Vec<Pubkey>,
@@ -46,10 +49,9 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_root(&ctx.accounts.root.key))]
+  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
   pub fn create_schedule(
     ctx: Context<CreateScheduleContext>,
-    _sched_path: Vec<u8>,
     user_count: u16,
     event_id: u64,
     timestamp: i64,
@@ -61,9 +63,13 @@ mod coin98_vault {
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_CreateSchedule");
 
+    let vault = &ctx.accounts.vault;
+
     let schedule = &mut ctx.accounts.schedule;
 
+    schedule.obj_type = ObjType::Distribution;
     schedule.event_id = event_id;
+    schedule.vault_id = vault.key();
     schedule.timestamp = timestamp;
     schedule.merkle_root = merkle_root.try_to_vec().unwrap();
     schedule.receiving_token_mint = receiving_token_mint;
@@ -76,7 +82,7 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_root(&ctx.accounts.root.key))]
+  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
   pub fn set_schedule_status(
     ctx: Context<SetScheduleContext>,
     is_active: bool,
@@ -90,75 +96,12 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_root(&ctx.accounts.root.key))]
+  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
   pub fn withdraw_sol(
     ctx: Context<WithdrawSolContext>,
     amount: u64,
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_WithdrawSOL");
-
-    let root_signer = &ctx.accounts.root_signer;
-    let recipient = &ctx.accounts.recipient;
-
-    let inner_seeds: &[&[u8]] = &[
-      &[2, 151, 229, 53, 244, 77, 229, 7],
-      &[128, 1, 194, 116, 57, 101, 12, 92],
-    ];
-    let (_, signer_nonce) = Pubkey::find_program_address(
-      &inner_seeds,
-      ctx.program_id,
-    );
-    let seeds: &[&[_]] = &[
-      &inner_seeds[0],
-      &inner_seeds[1],
-      &[signer_nonce],
-    ];
-    let result = shared::transfer_lamports(&root_signer, &recipient, amount, &[&seeds]);
-    if result.is_err() {
-      return Err(ErrorCode::TransactionFailed.into());
-    }
-
-    Ok(())
-  }
-
-  #[access_control(verify_root(&ctx.accounts.root.key))]
-  pub fn withdraw_token(
-    ctx: Context<WithdrawTokenContext>,
-    amount: u64,
-  ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_WithdrawToken");
-
-    let root_signer = &ctx.accounts.root_signer;
-    let sender = &ctx.accounts.sender;
-    let recipient = &ctx.accounts.recipient;
-
-    let inner_seeds: &[&[u8]] = &[
-      &[2, 151, 229, 53, 244, 77, 229, 7],
-      &[128, 1, 194, 116, 57, 101, 12, 92],
-    ];
-    let (_, signer_nonce) = Pubkey::find_program_address(
-      &inner_seeds,
-      ctx.program_id,
-    );
-    let seeds: &[&[_]] = &[
-      &inner_seeds[0],
-      &inner_seeds[1],
-      &[signer_nonce],
-    ];
-    let result = shared::transfer_token(&root_signer, &sender, &recipient, amount, &[&seeds]);
-    if result.is_err() {
-      return Err(ErrorCode::TransactionFailed.into());
-    }
-
-    Ok(())
-  }
-
-  #[access_control(verify_admin(&ctx.accounts.owner.key, &ctx.accounts.vault))]
-  pub fn withdraw_vault_sol(
-    ctx: Context<WithdrawVaultSolContext>,
-    amount: u64,
-  ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_WithdrawVaultSOL");
 
     let vault = &ctx.accounts.vault;
     let vault_signer = &ctx.accounts.vault_signer;
@@ -177,9 +120,9 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_admin(&ctx.accounts.owner.key, &ctx.accounts.vault))]
-  pub fn withdraw_vault_token(
-    ctx: Context<WithdrawVaultTokenContext>,
+  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
+  pub fn withdraw_token(
+    ctx: Context<WithdrawTokenContext>,
     amount: u64,
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_WithdrawToken");
@@ -220,9 +163,10 @@ mod coin98_vault {
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_RedeemToken");
 
+    let vault = &ctx.accounts.vault;
     let schedule = &ctx.accounts.schedule;
-    let root_signer = &ctx.accounts.root_signer;
-    let root_token0 = &ctx.accounts.root_token0;
+    let vault_signer = &ctx.accounts.vault_signer;
+    let vault_token0 = &ctx.accounts.vault_token0;
     let user_token0 = &ctx.accounts.user_token0;
 
     if schedule.sending_token_mint != solana_program::system_program::ID && sending_amount > 0 {
@@ -233,20 +177,12 @@ mod coin98_vault {
     let user_index: usize = index.into();
     schedule.redemptions[user_index] = true;
 
-    let inner_seeds: &[&[u8]] = &[
-      &[2, 151, 229, 53, 244, 77, 229, 7],
-      &[128, 1, 194, 116, 57, 101, 12, 92],
-    ];
-    let (_, signer_nonce) = Pubkey::find_program_address(
-      &inner_seeds,
-      ctx.program_id,
-    );
     let seeds: &[&[_]] = &[
-      &inner_seeds[0],
-      &inner_seeds[1],
-      &[signer_nonce],
+      &[2, 151, 229, 53, 244,  77, 229,  7],
+      vault.to_account_info().key.as_ref(),
+      &[vault.signer_nonce],
     ];
-    let result = shared::transfer_token(&root_signer, &root_token0, &user_token0, receiving_amount, &[&seeds]);
+    let result = shared::transfer_token(&vault_signer, &vault_token0, &user_token0, receiving_amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -272,9 +208,10 @@ mod coin98_vault {
   ) -> Result<()> {
     msg!("Coin98Vault: Instruction_RedeemTokenWithFee");
 
-    let root_signer = &ctx.accounts.root_signer;
-    let root_token0 = &ctx.accounts.root_token0;
-    let root_token1 = &ctx.accounts.root_token1;
+    let vault = &ctx.accounts.vault;
+    let vault_signer = &ctx.accounts.vault_signer;
+    let vault_token0 = &ctx.accounts.vault_token0;
+    let vault_token1 = &ctx.accounts.vault_token1;
     let user = &ctx.accounts.user;
     let user_token0 = &ctx.accounts.user_token0;
     let user_token1 = &ctx.accounts.user_token1;
@@ -283,25 +220,17 @@ mod coin98_vault {
     let user_index: usize = index.into();
     schedule.redemptions[user_index] = true;
 
-    let result = shared::transfer_token(&user, &user_token1, &root_token1, sending_amount, &[]);
+    let result = shared::transfer_token(&user, &user_token1, &vault_token1, sending_amount, &[]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
 
-    let inner_seeds: &[&[u8]] = &[
-      &[2, 151, 229, 53, 244, 77, 229, 7],
-      &[128, 1, 194, 116, 57, 101, 12, 92],
-    ];
-    let (_, signer_nonce) = Pubkey::find_program_address(
-      &inner_seeds,
-      ctx.program_id,
-    );
     let seeds: &[&[_]] = &[
-      &inner_seeds[0],
-      &inner_seeds[1],
-      &[signer_nonce],
+      &[2, 151, 229, 53, 244,  77, 229,  7],
+      vault.to_account_info().key.as_ref(),
+      &[vault.signer_nonce],
     ];
-    let result = shared::transfer_token(&root_signer, &root_token0, &user_token0, receiving_amount, &[&seeds]);
+    let result = shared::transfer_token(&vault_signer, &vault_token0, &user_token0, receiving_amount, &[&seeds]);
     if result.is_err() {
       return Err(ErrorCode::TransactionFailed.into());
     }
@@ -314,9 +243,9 @@ mod coin98_vault {
 #[instruction(vault_path: Vec<u8>)]
 pub struct CreateVaultContext<'info> {
 
-  /// CHECK: program owner, verified using #access_control
+  /// CHECK: owner of newly vault
   #[account(signer, mut)]
-  pub root: AccountInfo<'info>,
+  pub owner: AccountInfo<'info>,
 
   #[account(
     init,
@@ -325,8 +254,8 @@ pub struct CreateVaultContext<'info> {
       &*vault_path,
     ],
     bump,
-    payer = root,
-    space = 535
+    payer = owner,
+    space = Vault::size(),
   )]
   pub vault: Account<'info, Vault>,
 
@@ -336,31 +265,33 @@ pub struct CreateVaultContext<'info> {
 #[derive(Accounts)]
 pub struct SetVaultContext<'info> {
 
-  /// CHECK: program owner, verified using #access_control
+  /// CHECK: vault owner, verified using #access_control
   #[account(signer)]
-  pub root: AccountInfo<'info>,
+  pub owner: AccountInfo<'info>,
 
   #[account(mut)]
   pub vault: Account<'info, Vault>,
 }
 
 #[derive(Accounts)]
-#[instruction(schedule_path: Vec<u8>, user_count: u16)]
+#[instruction(user_count: u16, event_id: u64)]
 pub struct CreateScheduleContext<'info> {
 
-  /// CHECK: program owner, verified using #access_control
+  /// CHECK: vault admin, verified using #access_control
   #[account(signer, mut)]
-  pub root: AccountInfo<'info>,
+  pub admin: AccountInfo<'info>,
+
+  pub vault: Account<'info, Vault>,
 
   #[account(
     init,
     seeds = [
       &[244, 131, 10, 29, 174, 41, 128, 68],
-      &*schedule_path,
+      &shared::derive_event_id(event_id),
     ],
     bump,
-    payer = root,
-    space = 202usize + usize::from(user_count)
+    payer = admin,
+    space = Schedule::size(user_count),
   )]
   pub schedule: Account<'info, Schedule>,
 
@@ -370,69 +301,25 @@ pub struct CreateScheduleContext<'info> {
 #[derive(Accounts)]
 pub struct SetScheduleContext<'info> {
 
-  /// CHECK: program owner, verified using #access_control
-  #[account(signer)]
-  pub root: AccountInfo<'info>,
+  /// CHECK: vault admin, verified using #access_control
+  #[account(signer, mut)]
+  pub admin: AccountInfo<'info>,
 
-  #[account(mut)]
+  pub vault: Account<'info, Vault>,
+
+  #[account(
+    mut,
+    constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount
+  )]
   pub schedule: Account<'info, Schedule>,
 }
 
 #[derive(Accounts)]
 pub struct WithdrawSolContext<'info> {
 
-  /// CHECK: program owner, verified using #access_control
-  #[account(signer)]
-  pub root: AccountInfo<'info>,
-
-  /// CHECK: PDA to hold program's assets
-  #[account(
-    mut,
-    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
-  )]
-  pub root_signer: AccountInfo<'info>,
-
-  /// CHECK: User account to receive SOL
-  #[account(mut)]
-  pub recipient: AccountInfo<'info>,
-
-  pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct WithdrawTokenContext<'info> {
-
-  /// CHECK: program owner, verified using #access_control
-  #[account(signer)]
-  pub root: AccountInfo<'info>,
-
-  /// CHECK: PDA to hold program's assets
-  #[account(
-    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
-  )]
-  pub root_signer: AccountInfo<'info>,
-
-  /// CHECK: Program's TokenAccount
-  #[account(mut)]
-  pub sender: AccountInfo<'info>,
-
-  /// CHECK: Destination token account
-  #[account(mut)]
-  pub recipient: AccountInfo<'info>,
-
-  /// CHECK: Solana native Token Program
-  #[account(
-    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
-  )]
-  pub token_program: AccountInfo<'info>,
-}
-
-#[derive(Accounts)]
-pub struct WithdrawVaultSolContext<'info> {
-
-  /// CHECK: program owner, verified using #access_control
-  #[account(signer)]
-  pub owner: AccountInfo<'info>,
+  /// CHECK: vault admin, verified using #access_control
+  #[account(signer, mut)]
+  pub admin: AccountInfo<'info>,
 
   pub vault: Account<'info, Vault>,
 
@@ -455,11 +342,11 @@ pub struct WithdrawVaultSolContext<'info> {
 }
 
 #[derive(Accounts)]
-pub struct WithdrawVaultTokenContext<'info> {
+pub struct WithdrawTokenContext<'info> {
 
-  /// CHECK: program owner, verified using #access_control
-  #[account(signer)]
-  pub owner: AccountInfo<'info>,
+  /// CHECK: vault admin, verified using #access_control
+  #[account(signer, mut)]
+  pub admin: AccountInfo<'info>,
 
   pub vault: Account<'info, Vault>,
 
@@ -491,21 +378,30 @@ pub struct WithdrawVaultTokenContext<'info> {
 #[derive(Accounts)]
 pub struct RedeemTokenContext<'info> {
 
-  #[account(mut)]
+  pub vault: Account<'info, Vault>,
+
+  #[account(
+    mut,
+    constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount
+  )]
   pub schedule: Account<'info, Schedule>,
 
-  /// CHECK: PDA to hold program's assets
+  /// CHECK: PDA to hold vault's assets
   #[account(
-    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
+    seeds = [
+      &[2, 151, 229, 53, 244,  77, 229,  7],
+      vault.to_account_info().key.as_ref(),
+    ],
+    bump = vault.signer_nonce
   )]
-  pub root_signer: AccountInfo<'info>,
+  pub vault_signer: AccountInfo<'info>,
 
   /// CHECK: Program's TokenAccount for distribution
   #[account(
     mut,
-    constraint = *root_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
+    constraint = *vault_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
   )]
-  pub root_token0: AccountInfo<'info>,
+  pub vault_token0: AccountInfo<'info>,
 
   /// CHECK: User account eligible to redeem token. Must sign to provide proof of redemption
   #[account(signer)]
@@ -525,28 +421,37 @@ pub struct RedeemTokenContext<'info> {
 #[derive(Accounts)]
 pub struct RedeemTokenWithFeeContext<'info> {
 
-  #[account(mut)]
+  pub vault: Account<'info, Vault>,
+
+  #[account(
+    mut,
+    constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount
+  )]
   pub schedule: Account<'info, Schedule>,
 
-  /// CHECK: PDA to hold program's assets
+  /// CHECK: PDA to hold vault's assets
   #[account(
-    constraint = shared::is_root_signer(&root_signer, &program_id) @ErrorCode::InvalidSigner
+    seeds = [
+      &[2, 151, 229, 53, 244,  77, 229,  7],
+      vault.to_account_info().key.as_ref(),
+    ],
+    bump = vault.signer_nonce
   )]
-  pub root_signer: AccountInfo<'info>,
+  pub vault_signer: AccountInfo<'info>,
 
   /// CHECK: Program's TokenAccount for distribution
   #[account(
     mut,
-    constraint = *root_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
+    constraint = *vault_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
   )]
-  pub root_token0: AccountInfo<'info>,
+  pub vault_token0: AccountInfo<'info>,
 
   /// CHECK: Program's TokenAccount for collecting fee
   #[account(
     mut,
-    constraint = *root_token1.key == schedule.sending_token_account @ErrorCode::InvalidTokenAccount
+    constraint = *vault_token1.key == schedule.sending_token_account @ErrorCode::InvalidTokenAccount
   )]
-  pub root_token1: AccountInfo<'info>,
+  pub vault_token1: AccountInfo<'info>,
 
   /// CHECK: User account eligible to redeem token. Must sign to provide proof of redemption
   #[account(signer)]
@@ -571,6 +476,7 @@ pub struct RedeemTokenWithFeeContext<'info> {
 pub struct Schedule {
   pub obj_type: ObjType,
   pub event_id: u64,
+  pub vault_id: Pubkey,
   pub timestamp: i64,
   pub merkle_root: Vec<u8>,
   // receiving_token: Type of the token user will redeem
@@ -583,11 +489,25 @@ pub struct Schedule {
   pub redemptions: Vec<bool>,
 }
 
+impl Schedule {
+  pub fn size(user_count: u16) -> usize {
+    16 + 1 + 8 + 32 + 8 + 36 + 32 + 32 + 32 + 32 + 1 + (4 + usize::from(user_count))
+  }
+}
+
 #[account]
 pub struct Vault {
   pub obj_type: ObjType,
   pub signer_nonce: u8,
+  pub owner: Pubkey,
+  pub new_owner: Pubkey,
   pub admins: Vec<Pubkey>,
+}
+
+impl Vault {
+  pub fn size() -> usize {
+    16 + 1 + 1 + 32 + 32 + 516
+  }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Default)]
@@ -632,12 +552,20 @@ pub enum ErrorCode {
   Unauthorized,
 }
 
+/// Returns true if the user has root priviledge of the vault
+pub fn verify_owner(user: &Pubkey, vault: &Vault) -> Result<()> {
+  if *user != vault.owner {
+    return Err(ErrorCode::InvalidOwner.into());
+  }
+
+  Ok(())
+}
+
+
 /// Returns true if the user is an admin of a specified vault
 pub fn verify_admin(user: &Pubkey, vault: &Vault) -> Result<()> {
-  let user_key = user.to_string();
-  let result = constants::ROOT_KEYS.iter().position(|&key| key == &user_key[..]);
-  if result != None {
-    return Ok(());
+  if *user == vault.owner {
+   return Ok(());
   }
 
   let result = vault.admins.iter().position(|&key| key == *user);
@@ -677,17 +605,6 @@ pub fn verify_proof(index: u16, user: &Pubkey, receiving_amount: u64, sending_am
   let user_index: usize = index.into();
   if schedule.redemptions[user_index] {
     return Err(ErrorCode::Redeemed.into());
-  }
-
-  Ok(())
-}
-
-/// Returns true if the user has root priviledge of the contract
-pub fn verify_root(user: &Pubkey) -> Result<()> {
-  let user_key = user.to_string();
-  let result = constants::ROOT_KEYS.iter().position(|&key| key == &user_key[..]);
-  if result == None {
-    return Err(ErrorCode::InvalidOwner.into());
   }
 
   Ok(())
