@@ -2,8 +2,9 @@
 ---
 
 ## Introduction
-Coin98 Vault is an on-chain program with two functionalities:
-* Stores tokens and create schedule to distribute tokens to users.
-* Stores lamports and tokens in a vault for other on-chain program to deposit or withdraw. This feature serve a module for any on-chain program that need an API to store/withdraw tokens.
+Coin98 Vault is an on-chain program to manage tokens in its Vault instance.
+* Vault owner can deposit/withdraw tokens at will. They can also appoints other address to be `admin`.
+* Vault owner and vault admin can deposit/withdraw tokens without limit. Besides, they can create Schedule to distribute tokens to public users at a specified time in the futre.
+* User must redeem token after the timestamp of the Schedule. Token must be redeemed in full, partial redemption is not supported. If there is not enough tokens to redeem, more tokens need to be deposited.
 
-Most of the features are managed by Coin98 administrators. Public users can only redeem token from the vault if eligible.
+
