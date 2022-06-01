@@ -1,7 +1,14 @@
 # Intermediate file & folders
 /build
-/dist
-/node_modules
-/target
 /shared_accounts/*.json
-/package-lock.json
+
+yarn.lock
+
+package-lock.json
+dist
+
+.npmrc
+yarn-error.log
+
+node_modules
+target
