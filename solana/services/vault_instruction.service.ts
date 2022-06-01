@@ -1,4 +1,4 @@
-import * as borsh from '@project-serum/borsh';
+import { BorshCoder, Idl } from "@project-serum/anchor"
 import {
   AccountMeta,
   PublicKey,
@@ -6,7 +6,10 @@ import {
   TransactionInstruction,
 } from '@solana/web3.js';
 import BN from 'bn.js';
-import { BorshService, TOKEN_PROGRAM_ID } from '@coin98/solana-support-library';
+import { TOKEN_PROGRAM_ID } from '@coin98/solana-support-library';
+import VaultIdl from "../target/idl/coin98_vault.json"
+
+const coder = new BorshCoder(VaultIdl as Idl)
 
 export enum ObjType {
   Vault = 1,
@@ -16,9 +19,6 @@ export enum ObjType {
 
 interface AcceptOwnershipRequest {
 }
-
-const ACCEPT_OWNERSHIP_LAYOUT: borsh.Layout<AcceptOwnershipRequest> = borsh.struct([
-])
 
 interface CreateScheduleRequest {
   userCount: number
@@ -31,26 +31,10 @@ interface CreateScheduleRequest {
   sendingTokenAccount: PublicKey
 }
 
-const CREATE_SCHEDULE_LAYOUT: borsh.Layout<CreateScheduleRequest> = borsh.struct([
-  borsh.u16('userCount'),
-  borsh.u64('eventId'),
-  borsh.i64('timestamp'),
-  borsh.array(borsh.u8(), 32, 'merkleRoot'),
-  borsh.publicKey('receivingTokenMint'),
-  borsh.publicKey('receivingTokenAccount'),
-  borsh.publicKey('sendingTokenMint'),
-  borsh.publicKey('sendingTokenAccount'),
-])
-
 interface CreateVaultRequest {
   derivationPath: Buffer
   signerNonce: number
 }
-
-const CREATE_VAULT_LAYOUT: borsh.Layout<CreateVaultRequest> = borsh.struct([
-  borsh.vecU8('derivationPath'),
-  borsh.u8('signerNonce'),
-])
 
 interface RedeemTokenRequest {
   index: number
@@ -59,13 +43,6 @@ interface RedeemTokenRequest {
   sendingAmount: BN
 }
 
-const REDEEM_TOKEN_LAYOUT: borsh.Layout<RedeemTokenRequest> = borsh.struct([
-  borsh.u16('index'),
-  borsh.vec(borsh.array(borsh.u8(), 32), 'proofs'),
-  borsh.u64('receivingAmount'),
-  borsh.u64('sendingAmount'),
-])
-
 interface RedeemTokenWithFeeRequest {
   index: number
   proofs: Buffer[]
@@ -73,52 +50,25 @@ interface RedeemTokenWithFeeRequest {
   sendingAmount: BN
 }
 
-const REDEEM_TOKEN_WITH_FEE_LAYOUT: borsh.Layout<RedeemTokenWithFeeRequest> = borsh.struct([
-  borsh.u16('index'),
-  borsh.vec(borsh.array(borsh.u8(), 32), 'proofs'),
-  borsh.u64('receivingAmount'),
-  borsh.u64('sendingAmount'),
-])
-
 interface SetScheduleStatusRequest {
   isActive: boolean
 }
-
-const SET_SCHEDULE_STATUS_LAYOUT: borsh.Layout<SetScheduleStatusRequest> = borsh.struct([
-  borsh.bool('isActive')
-])
 
 interface SetVaultRequest {
   admins: PublicKey[]
 }
 
-const SET_VAULT_LAYOUT: borsh.Layout<SetVaultRequest> = borsh.struct([
-  borsh.vec(borsh.publicKey(), 'admins'),
-])
-
 interface TransferOwnershipRequest {
   newOwner: PublicKey
 }
-
-const TRANSFER_OWNERSHIP_LAYOUT: borsh.Layout<TransferOwnershipRequest> = borsh.struct([
-  borsh.publicKey('newOwner'),
-])
 
 interface WithdrawSolRequest {
   amount: BN
 }
 
-const WITHDRAW_SOL_LAYOUT: borsh.Layout<WithdrawSolRequest> = borsh.struct([
-  borsh.u64('amount'),
-])
-
 interface WithdrawTokenRequest {
   amount: BN
 }
-
-const WITHDRAW_TOKEN_LAYOUT: borsh.Layout<WithdrawTokenRequest> = borsh.struct([
-  borsh.u64('amount'),
-])
 
 export interface Schedule {
   objType: number
@@ -135,20 +85,6 @@ export interface Schedule {
   redemptions: boolean[]
 }
 
-const SCHEDULE_LAYOUT: borsh.Layout<Schedule> = borsh.struct([
-  borsh.u8('objType'),
-  borsh.u64('eventId'),
-  borsh.publicKey('vaultId'),
-  borsh.i64('timestamp'),
-  borsh.vecU8('merkleRoot'),
-  borsh.publicKey('receivingTokenMint'),
-  borsh.publicKey('receivingTokenAccount'),
-  borsh.publicKey('sendingTokenMint'),
-  borsh.publicKey('sendingTokenAccount'),
-  borsh.bool('isActive'),
-  borsh.vec(borsh.bool(), 'redemptions'),
-])
-
 export interface Vault {
   objType: number
   signer: PublicKey
@@ -159,15 +95,6 @@ export interface Vault {
   isActive: boolean
 }
 
-const VAULT_LAYOUT: borsh.Layout<Vault> = borsh.struct([
-  borsh.u8('objType'),
-  borsh.u8('signer_nonce'),
-  borsh.publicKey('owner'),
-  borsh.publicKey('newOwner'),
-  borsh.vec<PublicKey>(borsh.publicKey(), 'admins'),
-  borsh.bool('isActive'),
-])
-
 export class VaultInstructionService {
 
   static acceptOwnership(
@@ -177,12 +104,7 @@ export class VaultInstructionService {
   ): TransactionInstruction {
     const request: AcceptOwnershipRequest = {
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'accept_ownership',
-      ACCEPT_OWNERSHIP_LAYOUT,
-      request,
-      32,
-    )
+    const data = coder.instruction.encode("acceptOwnership", request)
     const keys: AccountMeta[] = [
       { pubkey: newOwnerAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: true },
@@ -220,12 +142,7 @@ export class VaultInstructionService {
       sendingTokenAccount: sendingTokenAccountAddress,
     }
 
-    const data: Buffer = BorshService.anchorSerialize(
-      'create_schedule',
-      CREATE_SCHEDULE_LAYOUT,
-      request,
-      2500,
-    )
+    const data = coder.instruction.encode("createSchedule", request)
 
     const keys: AccountMeta[] = [
       { pubkey: rootAddress, isSigner: true, isWritable: false },
@@ -252,12 +169,7 @@ export class VaultInstructionService {
       derivationPath: vaultPath,
       signerNonce,
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'create_vault',
-      CREATE_VAULT_LAYOUT,
-      request,
-      200,
-    )
+    const data = coder.instruction.encode("createVault", request)
     const keys: AccountMeta[] = [
       { pubkey: payerAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: true },
@@ -274,13 +186,13 @@ export class VaultInstructionService {
   static decodeScheduleData(
     data: Buffer
   ): Schedule {
-    return BorshService.anchorDeserialize(SCHEDULE_LAYOUT, data)
+    return coder.accounts.decode("Schedule", data)
   }
 
   static decodeVaultData(
     data: Buffer
   ): Vault {
-    return BorshService.anchorDeserialize(VAULT_LAYOUT, data)
+    return coder.accounts.decode("Vault", data)
   }
 
   static redeemToken(
@@ -303,12 +215,7 @@ export class VaultInstructionService {
       sendingAmount,
     }
 
-    const data: Buffer = BorshService.anchorSerialize(
-      'redeem_token',
-      REDEEM_TOKEN_LAYOUT,
-      request,
-      512,
-    )
+    const data = coder.instruction.encode("redeemToken", request)
     const keys: AccountMeta[] = [
       { pubkey: vaultAddress, isSigner: false, isWritable: false },
       { pubkey: scheduleAddress, isSigner: false, isWritable: true },
@@ -346,12 +253,7 @@ export class VaultInstructionService {
       receivingAmount,
       sendingAmount,
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'redeem_token_with_fee',
-      REDEEM_TOKEN_WITH_FEE_LAYOUT,
-      request,
-      512,
-    )
+    const data = coder.instruction.encode("redeemTokenWithFee", request)
     const keys: AccountMeta[] = [
       { pubkey: vaultAddress, isSigner: false, isWritable: false },
       { pubkey: scheduleAddress, isSigner: false, isWritable: true },
@@ -381,12 +283,7 @@ export class VaultInstructionService {
     const request: SetScheduleStatusRequest = {
       isActive,
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'set_schedule_status',
-      SET_SCHEDULE_STATUS_LAYOUT,
-      request,
-      25,
-    )
+    const data = coder.instruction.encode("setScheduleStatus", request)
     const keys: AccountMeta[] = [
       { pubkey: rootAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: false },
@@ -409,12 +306,7 @@ export class VaultInstructionService {
     const request: SetVaultRequest = {
       admins,
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'set_vault',
-      SET_VAULT_LAYOUT,
-      request,
-      500,
-    )
+    const data = coder.instruction.encode("setVault", request)
     const keys: AccountMeta[] = [
       { pubkey: rootAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: true },
@@ -436,12 +328,7 @@ export class VaultInstructionService {
     const request: TransferOwnershipRequest = {
       newOwner,
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'transfer_ownership',
-      TRANSFER_OWNERSHIP_LAYOUT,
-      request,
-      64,
-    )
+    const data = coder.instruction.encode("transferOwnership", request)
     const keys: AccountMeta[] = [
       { pubkey: ownerAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: true },
@@ -465,12 +352,7 @@ export class VaultInstructionService {
     const request: WithdrawSolRequest = {
       amount,
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'withdraw_sol',
-      WITHDRAW_SOL_LAYOUT,
-      request,
-      32,
-    )
+    const data = coder.instruction.encode("withdrawSol", request)
     const keys: AccountMeta[] = [
       { pubkey: ownerAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: false },
@@ -498,12 +380,7 @@ export class VaultInstructionService {
     const request: WithdrawTokenRequest = {
       amount,
     }
-    const data: Buffer = BorshService.anchorSerialize(
-      'withdraw_token',
-      WITHDRAW_TOKEN_LAYOUT,
-      request,
-      32,
-    )
+    const data = coder.instruction.encode("withdrawToken", request)
     const keys: AccountMeta[] = [
       { pubkey: ownerAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: false },
