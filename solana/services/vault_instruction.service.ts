@@ -274,8 +274,8 @@ export class VaultInstructionService {
   }
 
   static setScheduleStatus(
-    vaultAddress: PublicKey,
     rootAddress: PublicKey,
+    vaultAddress: PublicKey,
     scheduleAddress: PublicKey,
     isActive: boolean,
     vaultProgramId: PublicKey,
