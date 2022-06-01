@@ -3,6 +3,7 @@
   "version": "1.2.1",
   "description": "---",
   "main": "services/index.js",
+  "types": "services/index.d.js",
   "scripts": {
     "maintain": "anchor test --skip-local-validator",
     "test": "anchor test --skip-build --skip-deploy --skip-local-validator",
