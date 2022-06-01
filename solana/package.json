@@ -1,6 +1,6 @@
 {
   "name": "@coin98/vault-js",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "---",
   "main": "services/index.js",
   "types": "services/index.d.js",
@@ -28,7 +28,7 @@
     "@project-serum/anchor": "^0.24.2",
     "@project-serum/borsh": "^0.2.5",
     "bn.js": "^5.2.1",
-    "moment": "^2.29.3",
+    "moment": "^2.29.3"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
