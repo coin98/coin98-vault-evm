@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.2.2](https://github.com/coin98/coin98-vault/compare/v1.2.1...v1.2.2) (2022-06-01)
+
+
+### Bug Fixes
+
+* **package:** add types ([160da00](https://github.com/coin98/coin98-vault/commit/160da008a636c2c93fa70c6dd005a280feb84351))
+
 ### [1.2.1](https://github.com/coin98/coin98-vault/compare/v1.2.0...v1.2.1) (2022-06-01)
 
 
