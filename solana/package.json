@@ -1,6 +1,6 @@
 {
   "name": "coin98-vault-js",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "---",
   "main": "services/index.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "build:program": "anchor build",
     "build": "npm run build:program && npm run build:services",
     "prerelease": "npm run test && npm run build && cp .npmrc dist",
-    "release": "standard-version && cp package.json dist && git push --follow-tags origin main && cd dist && npm publish"
+    "release": "standard-version && cp package.json dist && git push --follow-tags origin master && cd dist && npm publish"
   },
   "repository": {
     "type": "git",
