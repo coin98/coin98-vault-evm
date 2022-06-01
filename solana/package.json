@@ -1,6 +1,6 @@
 {
   "name": "@coin98/vault-js",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "---",
   "main": "services/index.js",
   "types": "services/index.d.js",
