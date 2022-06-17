@@ -1,8 +1,8 @@
 import * as borsh from '@project-serum/borsh';
-import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import BN from 'bn.js';
 import moment from 'moment';
-import { HashService, BorshService } from '@coin98/solana-support-library';
+import { HashService, BorshService, sendTransaction } from '@coin98/solana-support-library';
 import { Schedule, Vault, VaultInstructionService } from './vault_instruction.service';
 
 interface ScheduleDerivationPath {
@@ -32,7 +32,7 @@ export class VaultService {
 
     transaction.add(acceptOwnershipInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Address ${payerAccount.publicKey.toBase58()} accepted as new owner of Vault ${vaultAddress.toBase58()}`, '---', txSign, '\n')
@@ -55,7 +55,7 @@ export class VaultService {
 
     const transaction = new Transaction()
 
-    const [scheduleAddress,]: [PublicKey, number] = await this.findScheduleAddress(eventId, vaultProgramId,)
+    const [scheduleAddress,]: [PublicKey, number] = this.findScheduleAddress(eventId, vaultProgramId,)
 
     const createScheduleInstruction = VaultInstructionService.createSchedule(
       payerAccount.publicKey,
@@ -73,7 +73,7 @@ export class VaultService {
     )
     transaction.add(createScheduleInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Created Schedule ${scheduleAddress.toBase58()}`, '---', txSign, '\n')
@@ -90,11 +90,11 @@ export class VaultService {
     const transaction = new Transaction()
 
     const vaultDerivationPath = this.findVaultDerivationPath(vaultName)
-    const [vaultAddress,]: [PublicKey, number] = await this.findVaultAddress(
+    const [vaultAddress,]: [PublicKey, number] = this.findVaultAddress(
       vaultName,
       vaultProgramId,
     )
-    const [, signerNonce]: [PublicKey, number] = await this.findVaultSignerAddress(
+    const [, signerNonce]: [PublicKey, number] = this.findVaultSignerAddress(
       vaultAddress,
       vaultProgramId
     )
@@ -108,7 +108,7 @@ export class VaultService {
     )
     transaction.add(createVaultInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Created Vault ${vaultAddress.toBase58()}`, '---', txSign, '\n')
@@ -175,7 +175,7 @@ export class VaultService {
       transaction.add(redeemInstruction)
     }
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Redeemed token for user ${payerAccount.publicKey.toBase58()} in schedule ${scheduleAddress.toBase58()}`, '---', txSign, '\n')
@@ -201,7 +201,7 @@ export class VaultService {
     )
     transaction.add(setScheduleStatusInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Updated schedule ${scheduleAddress.toBase58()} by ${payerAccount.publicKey.toBase58()}`, '---', txSign, '\n')
@@ -225,7 +225,7 @@ export class VaultService {
     )
     transaction.add(setVaultInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Updated vault ${vaultAddress.toBase58()} by ${payerAccount.publicKey.toBase58()}`, '---', txSign, '\n')
@@ -250,7 +250,7 @@ export class VaultService {
 
     transaction.add(transferOwnershipInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Address ${newOwnerAddress.toBase58()} is appointed as new owner of Vault ${vaultAddress.toBase58()}`, '---', txSign, '\n')
@@ -282,7 +282,7 @@ export class VaultService {
     )
     transaction.add(withdrawSolInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Withdrawn ${amount} lamports from vault ${vaultAddress.toBase58()} to ${recipientAddress.toBase58()}`, '---', txSign, '\n')
@@ -316,7 +316,7 @@ export class VaultService {
     )
     transaction.add(withdrawTokenInstruction)
 
-    const txSign = await sendAndConfirmTransaction(connection, transaction, [
+    const txSign = await sendTransaction(connection, transaction, [
       payerAccount,
     ])
     console.info(`Withdrawn ${amount} token units from vault ${vaultAddress.toBase58()} to ${recipientAddress.toBase58()}`, '---', txSign, '\n')
@@ -328,7 +328,7 @@ export class VaultService {
   ): Promise<Schedule> {
     const accountInfo = await connection.getAccountInfo(scheduleAddress)
     const data = VaultInstructionService.decodeScheduleData(accountInfo.data)
-    const [signerAddress,] = await this.findRootSignerAddress(
+    const [signerAddress,] = this.findRootSignerAddress(
       accountInfo.owner,
     )
     data.signer = signerAddress
@@ -341,7 +341,7 @@ export class VaultService {
   ): Promise<Vault> {
     const accountInfo = await connection.getAccountInfo(vaultAddress)
     const data = VaultInstructionService.decodeVaultData(accountInfo.data)
-    const [signerAddress,] = await this.findVaultSignerAddress(
+    const [signerAddress,] = this.findVaultSignerAddress(
       vaultAddress,
       accountInfo.owner,
     )
@@ -366,34 +366,46 @@ export class VaultService {
     return HashService.sha256(identifier)
   }
 
-  static async findRootSignerAddress(
+  static findRootSignerAddress(
     vaultProgramId: PublicKey,
-  ): Promise<[PublicKey, number]> {
+  ): [PublicKey, number] {
     const prefix1: Buffer = HashService.sha256('Signer').slice(0, 8)
     const prefix2: Buffer = HashService.sha256('global').slice(0, 8)
-    return PublicKey.findProgramAddress([prefix1, prefix2], vaultProgramId)
+    return PublicKey.findProgramAddressSync([prefix1, prefix2], vaultProgramId)
   }
 
-  static async findScheduleAddress(eventId: BN, vaultProgramId: PublicKey,): Promise<[PublicKey, number]> {
+  static findScheduleAddress(
+    eventId: BN,
+    vaultProgramId: PublicKey,
+  ) : [PublicKey, number] {
     const prefix: Buffer = HashService.sha256('Schedule').slice(0, 8)
     const derivationPath: Buffer = this.findScheduleDerivationPath(eventId)
-    return PublicKey.findProgramAddress([prefix, derivationPath], vaultProgramId)
+    return PublicKey.findProgramAddressSync([prefix, derivationPath], vaultProgramId)
   }
 
-  static async findScheduleSignerAddress(scheduleAddress: PublicKey, vaultProgramId: PublicKey,): Promise<[PublicKey, number]> {
+  static findScheduleSignerAddress(
+    scheduleAddress: PublicKey,
+    vaultProgramId: PublicKey,
+  ): [PublicKey, number] {
     const prefix: Buffer = HashService.sha256('Signer').slice(0, 8)
-    return PublicKey.findProgramAddress([prefix, scheduleAddress.toBuffer()], vaultProgramId)
+    return PublicKey.findProgramAddressSync([prefix, scheduleAddress.toBuffer()], vaultProgramId)
   }
 
-  static async findVaultAddress(identifier: string, vaultProgramId: PublicKey,): Promise<[PublicKey, number]> {
+  static findVaultAddress(
+    identifier: string,
+    vaultProgramId: PublicKey,
+  ): [PublicKey, number] {
     const prefix: Buffer = HashService.sha256('Vault').slice(0, 8)
     const derivationPath: Buffer = this.findVaultDerivationPath(identifier)
-    return PublicKey.findProgramAddress([prefix, derivationPath], vaultProgramId)
+    return PublicKey.findProgramAddressSync([prefix, derivationPath], vaultProgramId)
   }
 
-  static async findVaultSignerAddress(vaultAddress: PublicKey, vaultProgramId: PublicKey,): Promise<[PublicKey, number]> {
+  static findVaultSignerAddress(
+    vaultAddress: PublicKey,
+    vaultProgramId: PublicKey,
+  ): [PublicKey, number] {
     const prefix: Buffer = HashService.sha256('Signer').slice(0, 8)
-    return PublicKey.findProgramAddress([prefix, vaultAddress.toBuffer()], vaultProgramId)
+    return PublicKey.findProgramAddressSync([prefix, vaultAddress.toBuffer()], vaultProgramId)
   }
 
   static async printScheduleAccountInfo(connection: Connection, scheduleAddress: PublicKey,): Promise<void> {
