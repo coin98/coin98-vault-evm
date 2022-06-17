@@ -32,7 +32,7 @@ interface CreateScheduleRequest {
 }
 
 interface CreateVaultRequest {
-  derivationPath: Buffer
+  vaultPath: Buffer
   signerNonce: number
 }
 
@@ -166,7 +166,7 @@ export class VaultInstructionService {
     vaultProgramId: PublicKey,
   ): TransactionInstruction {
     const request: CreateVaultRequest = {
-      derivationPath: vaultPath,
+      vaultPath,
       signerNonce,
     }
     const data = coder.instruction.encode("createVault", request)
