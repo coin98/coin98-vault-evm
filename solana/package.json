@@ -1,6 +1,6 @@
 {
   "name": "@coin98/vault-js",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "---",
   "main": "services/index.js",
   "types": "services/index.d.js",
@@ -18,7 +18,7 @@
     "url": "git+https://github.com/coin98/coin98-vault.git"
   },
   "author": "Coin98",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/coin98/coin98-vault/issues"
   },
@@ -36,8 +36,8 @@
     "@types/mocha": "^9.1.1",
     "chai": "^4.3.6",
     "mocha": "^10.0.0",
-    "ts-mocha": "^10.0.0",
     "standard-version": "^9.5.0",
+    "ts-mocha": "^10.0.0",
     "typescript": "^4.3.5"
   }
 }
