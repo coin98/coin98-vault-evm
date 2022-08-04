@@ -71,6 +71,7 @@ mod coin98_vault {
     event_id: u64,
     timestamp: i64,
     merkle_root: [u8; 32],
+    use_multi_token: bool,
     receiving_token_mint: Pubkey,
     receiving_token_account: Pubkey,
     sending_token_mint: Pubkey,
@@ -82,7 +83,7 @@ mod coin98_vault {
 
     let schedule = &mut ctx.accounts.schedule;
 
-    schedule.obj_type = ObjType::Distribution;
+    schedule.obj_type = if use_multi_token { ObjType::DistributionMulti } else { ObjType::Distribution };
     schedule.event_id = event_id;
     schedule.vault_id = vault.key();
     schedule.timestamp = timestamp;
@@ -160,7 +161,7 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_schedule(&ctx.accounts.schedule))]
+  #[access_control(verify_schedule(&ctx.accounts.schedule, ObjType::Distribution))]
   #[access_control(verify_proof(
     index,
     &ctx.accounts.user.key,
@@ -169,8 +170,8 @@ mod coin98_vault {
     &proofs,
     &ctx.accounts.schedule
   ))]
-  pub fn redeem_token(
-    ctx: Context<RedeemTokenContext>,
+  pub fn redeem_token<'a>(
+    ctx: Context<'_, '_, '_, 'a, RedeemTokenContext<'a>>,
     index: u16,
     proofs: Vec<[u8; 32]>,
     receiving_amount: u64,
@@ -179,65 +180,28 @@ mod coin98_vault {
     msg!("Coin98Vault: Instruction_RedeemToken");
 
     let vault = &ctx.accounts.vault;
-    let schedule = &ctx.accounts.schedule;
     let vault_signer = &ctx.accounts.vault_signer;
     let vault_token0 = &ctx.accounts.vault_token0;
     let user_token0 = &ctx.accounts.user_token0;
+
+    let schedule = &mut ctx.accounts.schedule;
+    let user_index: usize = index.into();
+    schedule.redemptions[user_index] = true;
 
     if schedule.sending_token_mint != solana_program::system_program::ID && sending_amount > 0 {
-      return Err(ErrorCode::FeeRequired.into());
-    }
-
-    let schedule = &mut ctx.accounts.schedule;
-    let user_index: usize = index.into();
-    schedule.redemptions[user_index] = true;
-
-    let seeds: &[&[_]] = &[
-      &[2, 151, 229, 53, 244,  77, 229,  7],
-      vault.to_account_info().key.as_ref(),
-      &[vault.signer_nonce],
-    ];
-    let result = shared::transfer_token(&vault_signer, &vault_token0, &user_token0, receiving_amount, &[&seeds]);
-    if result.is_err() {
-      return Err(ErrorCode::TransactionFailed.into());
-    }
-
-    Ok(())
-  }
-
-  #[access_control(verify_schedule(&ctx.accounts.schedule))]
-  #[access_control(verify_proof(
-    index,
-    &ctx.accounts.user.key,
-    receiving_amount,
-    sending_amount,
-    &proofs,
-    &ctx.accounts.schedule
-  ))]
-  pub fn redeem_token_with_fee(
-    ctx: Context<RedeemTokenWithFeeContext>,
-    index: u16,
-    proofs: Vec<[u8; 32]>,
-    receiving_amount: u64,
-    sending_amount: u64,
-  ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_RedeemTokenWithFee");
-
-    let vault = &ctx.accounts.vault;
-    let vault_signer = &ctx.accounts.vault_signer;
-    let vault_token0 = &ctx.accounts.vault_token0;
-    let vault_token1 = &ctx.accounts.vault_token1;
-    let user = &ctx.accounts.user;
-    let user_token0 = &ctx.accounts.user_token0;
-    let user_token1 = &ctx.accounts.user_token1;
-
-    let schedule = &mut ctx.accounts.schedule;
-    let user_index: usize = index.into();
-    schedule.redemptions[user_index] = true;
-
-    let result = shared::transfer_token(&user, &user_token1, &vault_token1, sending_amount, &[]);
-    if result.is_err() {
-      return Err(ErrorCode::TransactionFailed.into());
+      let accounts = &ctx.remaining_accounts;
+      let user = &ctx.accounts.user;
+      let vault_token1 = &accounts[0];
+      require_keys_eq!(*vault_token1.key, schedule.sending_token_account, ErrorCode::InvalidAccount);
+      let user_token1 = &accounts[1];
+      shared::transfer_token(
+          &user,
+          &user_token1,
+          &vault_token1,
+          sending_amount,
+          &[]
+        )
+        .expect("Coin98Vault: CPI failed.");
     }
 
     let seeds: &[&[_]] = &[
@@ -245,10 +209,14 @@ mod coin98_vault {
       vault.to_account_info().key.as_ref(),
       &[vault.signer_nonce],
     ];
-    let result = shared::transfer_token(&vault_signer, &vault_token0, &user_token0, receiving_amount, &[&seeds]);
-    if result.is_err() {
-      return Err(ErrorCode::TransactionFailed.into());
-    }
+    shared::transfer_token(
+        &vault_signer,
+        &vault_token0,
+        &user_token0,
+        receiving_amount,
+        &[&seeds]
+      )
+      .expect("Coin98Vault: CPI failed.");
 
     Ok(())
   }
@@ -300,7 +268,6 @@ pub fn verify_new_owner(user: &Pubkey, vault: &Vault) -> Result<()> {
   Ok(())
 }
 
-
 /// Returns true if the user is an admin of a specified vault
 pub fn verify_admin(user: &Pubkey, vault: &Vault) -> Result<()> {
   if *user == vault.owner {
@@ -315,14 +282,13 @@ pub fn verify_admin(user: &Pubkey, vault: &Vault) -> Result<()> {
   Ok(())
 }
 
-pub fn verify_schedule(schedule: &Schedule) -> Result<()> {
+pub fn verify_schedule(schedule: &Schedule, expected_type: ObjType) -> Result<()> {
+
   let clock = Clock::get().unwrap();
-  if !schedule.is_active {
-    return Err(ErrorCode::ScheduleUnavailable.into());
-  }
-  if clock.unix_timestamp < schedule.timestamp {
-    return Err(ErrorCode::ScheduleLocked.into());
-  }
+
+  require!(schedule.obj_type == expected_type, ErrorCode::InvalidAccount);
+  require!(schedule.is_active, ErrorCode::ScheduleUnavailable);
+  require!(clock.unix_timestamp >= schedule.timestamp, ErrorCode::ScheduleLocked);
 
   Ok(())
 }

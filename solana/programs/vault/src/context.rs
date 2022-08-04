@@ -4,6 +4,7 @@ use crate::error::{
   ErrorCode,
 };
 use crate::state::{
+  ObjType,
   Schedule,
   Vault,
 };
@@ -140,7 +141,7 @@ pub struct WithdrawTokenContext<'info> {
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
+    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount,
   )]
   pub token_program: AccountInfo<'info>,
 }
@@ -152,7 +153,8 @@ pub struct RedeemTokenContext<'info> {
 
   #[account(
     mut,
-    constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount
+    constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount,
+    constraint = schedule.obj_type == ObjType::Distribution @ErrorCode::InvalidAccount,
   )]
   pub schedule: Account<'info, Schedule>,
 
@@ -180,60 +182,6 @@ pub struct RedeemTokenContext<'info> {
   /// CHECK: User account to receive token
   #[account(mut)]
   pub user_token0: AccountInfo<'info>,
-
-  /// CHECK: Solana native Token Program
-  #[account(
-    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
-  )]
-  pub token_program: AccountInfo<'info>,
-}
-
-#[derive(Accounts)]
-pub struct RedeemTokenWithFeeContext<'info> {
-
-  pub vault: Account<'info, Vault>,
-
-  #[account(
-    mut,
-    constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount
-  )]
-  pub schedule: Account<'info, Schedule>,
-
-  /// CHECK: PDA to hold vault's assets
-  #[account(
-    seeds = [
-      &[2, 151, 229, 53, 244,  77, 229,  7],
-      vault.to_account_info().key.as_ref(),
-    ],
-    bump = vault.signer_nonce
-  )]
-  pub vault_signer: AccountInfo<'info>,
-
-  /// CHECK: Program's TokenAccount for distribution
-  #[account(
-    mut,
-    constraint = *vault_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
-  )]
-  pub vault_token0: AccountInfo<'info>,
-
-  /// CHECK: Program's TokenAccount for collecting fee
-  #[account(
-    mut,
-    constraint = *vault_token1.key == schedule.sending_token_account @ErrorCode::InvalidTokenAccount
-  )]
-  pub vault_token1: AccountInfo<'info>,
-
-  /// CHECK: User account eligible to redeem token. Must sign to provide proof of redemption
-  #[account(signer)]
-  pub user: AccountInfo<'info>,
-
-  /// CHECK: User account to receive token
-  #[account(mut)]
-  pub user_token0: AccountInfo<'info>,
-
-  /// CHECK: User account to send token
-  #[account(mut)]
-  pub user_token1: AccountInfo<'info>,
 
   /// CHECK: Solana native Token Program
   #[account(

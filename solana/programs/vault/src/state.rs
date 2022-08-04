@@ -1,9 +1,10 @@
 use anchor_lang::prelude::*;
 
 #[repr(u8)]
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq)]
 pub enum ObjType {
   Distribution = 2u8,
+  DistributionMulti = 3u8,
   Vault = 1u8,
 }
 
