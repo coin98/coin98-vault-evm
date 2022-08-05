@@ -93,8 +93,6 @@ export class MerkleDistributionService {
 
   static getProof(tree: MerkleTree, index: number): MerkleNode[] {
     const nodes = tree.nodes();
-    const leaf = nodes[0][index];
-    const root = tree.root();
     const proofs = [];
     let currentIndex = index;
     for (let i = 0; i < nodes.length - 1; i++) {
