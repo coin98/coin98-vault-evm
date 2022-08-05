@@ -53,3 +53,12 @@ pub struct RedemptionParams {
   pub receiving_amount: u64,
   pub sending_amount: u64,
 }
+
+#[derive(AnchorSerialize, AnchorDeserialize, Default)]
+pub struct RedemptionMultiParams {
+  pub index: u16,
+  pub address: Pubkey,
+  pub receiving_token_mint: Pubkey,
+  pub receiving_amount: u64,
+  pub sending_amount: u64,
+}

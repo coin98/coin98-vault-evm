@@ -3,10 +3,16 @@ pub mod context;
 pub mod error;
 pub mod shared;
 pub mod state;
+pub mod external;
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::keccak::{
-  hash,
+use solana_program::{
+  keccak::{
+    hash,
+  },
+  program_pack::{
+    Pack,
+  },
 };
 use std::{
   convert::{
@@ -20,9 +26,13 @@ use crate::error::{
 };
 use crate::state::{
   ObjType,
+  RedemptionMultiParams,
   RedemptionParams,
   Schedule,
   Vault,
+};
+use crate::external::spl_token::{
+  TokenAccount,
 };
 
 declare_id!("VT2uRTAsYJRavhAVcvSjk9TzyNeP1ccA6KUUD5JxeHj");
@@ -221,6 +231,76 @@ mod coin98_vault {
     Ok(())
   }
 
+  #[access_control(verify_schedule(&ctx.accounts.schedule, ObjType::Distribution))]
+  #[access_control(verify_proof_multi(
+    index,
+    &ctx.accounts.user.key,
+    receiving_token_mint,
+    receiving_amount,
+    sending_amount,
+    &proofs,
+    &ctx.accounts.schedule
+  ))]
+  pub fn redeem_token_multi<'a>(
+    ctx: Context<'_, '_, '_, 'a, RedeemTokenMultiContext<'a>>,
+    index: u16,
+    proofs: Vec<[u8; 32]>,
+    receiving_token_mint: Pubkey,
+    receiving_amount: u64,
+    sending_amount: u64,
+  ) -> Result<()> {
+    msg!("Coin98Vault: Instruction_RedeemTokenMulti");
+
+    let vault = &ctx.accounts.vault;
+    let vault_signer = &ctx.accounts.vault_signer;
+
+    let vault_token0 = &ctx.accounts.vault_token0;
+    let vault_token0 = TokenAccount::unpack_from_slice(&vault_token0.try_borrow_data().unwrap()).unwrap();
+    let user_token0 = &ctx.accounts.user_token0;
+    let user_token0 = TokenAccount::unpack_from_slice(&user_token0.try_borrow_data().unwrap()).unwrap();
+
+    require_keys_eq!(vault_token0.mint, receiving_token_mint, ErrorCode::InvalidAccount);
+    require_keys_eq!(user_token0.mint, receiving_token_mint, ErrorCode::InvalidAccount);
+
+    let schedule = &mut ctx.accounts.schedule;
+    let user_index: usize = index.into();
+    schedule.redemptions[user_index] = true;
+
+    if schedule.sending_token_mint != solana_program::system_program::ID && sending_amount > 0 {
+      let accounts = &ctx.remaining_accounts;
+      let user = &ctx.accounts.user;
+      let vault_token1 = &accounts[0];
+      require_keys_eq!(*vault_token1.key, schedule.sending_token_account, ErrorCode::InvalidAccount);
+      let user_token1 = &accounts[1];
+      shared::transfer_token(
+          &user,
+          &user_token1,
+          &vault_token1,
+          sending_amount,
+          &[]
+        )
+        .expect("Coin98Vault: CPI failed.");
+    }
+
+    let vault_token0 = &ctx.accounts.vault_token0;
+    let user_token0 = &ctx.accounts.user_token0;
+    let seeds: &[&[_]] = &[
+      &[2, 151, 229, 53, 244,  77, 229,  7],
+      vault.to_account_info().key.as_ref(),
+      &[vault.signer_nonce],
+    ];
+    shared::transfer_token(
+        &vault_signer,
+        &vault_token0,
+        &user_token0,
+        receiving_amount,
+        &[&seeds]
+      )
+      .expect("Coin98Vault: CPI failed.");
+
+    Ok(())
+  }
+
   #[access_control(verify_owner(&ctx.accounts.owner.key, &ctx.accounts.vault))]
   pub fn transfer_ownership(
     ctx: Context<TransferOwnershipContext>,
@@ -314,3 +394,27 @@ pub fn verify_proof(index: u16, user: &Pubkey, receiving_amount: u64, sending_am
 
   Ok(())
 }
+
+pub fn verify_proof_multi(index: u16, user: &Pubkey, receiving_token_mint: Pubkey, receiving_amount: u64, sending_amount: u64, proofs: &Vec<[u8; 32]>, schedule: &Schedule) -> Result<()> {
+  let redemption_params = RedemptionMultiParams {
+    index: index,
+    address: *user,
+    receiving_token_mint: receiving_token_mint,
+    receiving_amount: receiving_amount,
+    sending_amount: sending_amount,
+  };
+  let redemption_data = redemption_params.try_to_vec().unwrap();
+  let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
+  let leaf = hash(&redemption_data[..]);
+  if !shared::verify_proof(proofs.to_vec(), root, leaf.to_bytes()) {
+    return Err(ErrorCode::Unauthorized.into());
+  }
+
+  let user_index: usize = index.into();
+  if schedule.redemptions[user_index] {
+    return Err(ErrorCode::Redeemed.into());
+  }
+
+  Ok(())
+}
+
