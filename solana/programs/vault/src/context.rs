@@ -1,5 +1,10 @@
 use anchor_lang::prelude::*;
 
+use crate::constant::{
+  SCHEDULE_SEED_1,
+  SIGNER_SEED_1,
+  VAULT_SEED_1,
+};
 use crate::error::{
   ErrorCode,
 };
@@ -9,6 +14,9 @@ use crate::state::{
   Vault,
 };
 use crate::shared;
+use crate::external::spl_token::{
+  is_token_program,
+};
 
 #[derive(Accounts)]
 #[instruction(vault_path: Vec<u8>)]
@@ -21,7 +29,7 @@ pub struct CreateVaultContext<'info> {
   #[account(
     init,
     seeds = [
-      &[93, 85, 196,  21, 227, 86, 221, 123],
+      &VAULT_SEED_1,
       &*vault_path,
     ],
     bump,
@@ -57,8 +65,8 @@ pub struct CreateScheduleContext<'info> {
   #[account(
     init,
     seeds = [
-      &[244, 131, 10, 29, 174, 41, 128, 68],
-      &shared::derive_event_id(event_id),
+      &SCHEDULE_SEED_1,
+      &shared::derive_event_id(event_id).as_ref(),
     ],
     bump,
     payer = admin,
@@ -98,7 +106,7 @@ pub struct WithdrawSolContext<'info> {
   #[account(
     mut,
     seeds = [
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
     ],
     bump = vault.signer_nonce
@@ -124,7 +132,7 @@ pub struct WithdrawTokenContext<'info> {
   /// CHECK: PDA to hold vault's assets
   #[account(
     seeds = [
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
     ],
     bump = vault.signer_nonce
@@ -141,7 +149,7 @@ pub struct WithdrawTokenContext<'info> {
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount,
+    constraint = is_token_program(&token_program) @ErrorCode::InvalidAccount,
   )]
   pub token_program: AccountInfo<'info>,
 }
@@ -161,7 +169,7 @@ pub struct RedeemTokenContext<'info> {
   /// CHECK: PDA to hold vault's assets
   #[account(
     seeds = [
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
     ],
     bump = vault.signer_nonce
@@ -171,7 +179,7 @@ pub struct RedeemTokenContext<'info> {
   /// CHECK: Program's TokenAccount for distribution
   #[account(
     mut,
-    constraint = *vault_token0.key == schedule.receiving_token_account @ErrorCode::InvalidTokenAccount
+    constraint = *vault_token0.key == schedule.receiving_token_account @ErrorCode::InvalidAccount
   )]
   pub vault_token0: AccountInfo<'info>,
 
@@ -185,7 +193,7 @@ pub struct RedeemTokenContext<'info> {
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
+    constraint = is_token_program(&token_program) @ErrorCode::InvalidAccount
   )]
   pub token_program: AccountInfo<'info>,
 }
@@ -205,7 +213,7 @@ pub struct RedeemTokenMultiContext<'info> {
   /// CHECK: PDA to hold vault's assets
   #[account(
     seeds = [
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
     ],
     bump = vault.signer_nonce
@@ -226,7 +234,7 @@ pub struct RedeemTokenMultiContext<'info> {
 
   /// CHECK: Solana native Token Program
   #[account(
-    constraint = shared::is_token_program(&token_program) @ErrorCode::InvalidAccount
+    constraint = is_token_program(&token_program) @ErrorCode::InvalidAccount
   )]
   pub token_program: AccountInfo<'info>,
 }

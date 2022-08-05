@@ -20,6 +20,9 @@ use std::{
   },
 };
 
+use crate::constant::{
+  SIGNER_SEED_1,
+};
 use crate::context::*;
 use crate::error::{
   ErrorCode,
@@ -30,6 +33,12 @@ use crate::state::{
   RedemptionParams,
   Schedule,
   Vault,
+};
+use crate::external::anchor_spl_system::{
+  transfer_lamport,
+};
+use crate::external::anchor_spl_token::{
+  transfer_token,
 };
 use crate::external::spl_token::{
   TokenAccount,
@@ -46,7 +55,6 @@ mod coin98_vault {
     _vault_path: Vec<u8>,
     signer_nonce: u8,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_CreateVault");
 
     let owner = &ctx.accounts.owner;
 
@@ -60,12 +68,11 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_owner(&ctx.accounts.owner.key, &ctx.accounts.vault))]
+  #[access_control(is_owner(&ctx.accounts.owner.key, &ctx.accounts.vault))]
   pub fn set_vault(
     ctx: Context<SetVaultContext>,
     admins: Vec<Pubkey>,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_SetVault");
 
     let vault = &mut ctx.accounts.vault;
 
@@ -74,7 +81,7 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
+  #[access_control(is_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
   pub fn create_schedule(
     ctx: Context<CreateScheduleContext>,
     user_count: u16,
@@ -87,7 +94,6 @@ mod coin98_vault {
     sending_token_mint: Pubkey,
     sending_token_account: Pubkey,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_CreateSchedule");
 
     let vault = &ctx.accounts.vault;
 
@@ -108,12 +114,11 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
+  #[access_control(is_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
   pub fn set_schedule_status(
     ctx: Context<SetScheduleContext>,
     is_active: bool,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_SetScheduleStatus");
 
     let schedule = &mut ctx.accounts.schedule;
 
@@ -122,31 +127,33 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
+  #[access_control(is_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
   pub fn withdraw_sol(
     ctx: Context<WithdrawSolContext>,
     amount: u64,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_WithdrawSOL");
 
     let vault = &ctx.accounts.vault;
     let vault_signer = &ctx.accounts.vault_signer;
     let recipient = &ctx.accounts.recipient;
 
     let seeds: &[&[_]] = &[
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
       &[vault.signer_nonce],
     ];
-    let result = shared::transfer_lamports(&vault_signer, &recipient, amount, &[&seeds]);
-    if result.is_err() {
-      return Err(ErrorCode::TransactionFailed.into());
-    }
+    transfer_lamport(
+        &vault_signer,
+        &recipient,
+        amount,
+        &[&seeds]
+      )
+      .expect("Coin98Vault: CPI failed.");
 
     Ok(())
   }
 
-  #[access_control(verify_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
+  #[access_control(is_admin(&ctx.accounts.admin.key, &ctx.accounts.vault))]
   pub fn withdraw_token(
     ctx: Context<WithdrawTokenContext>,
     amount: u64,
@@ -159,14 +166,18 @@ mod coin98_vault {
     let recipient = &ctx.accounts.recipient;
 
     let seeds: &[&[_]] = &[
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
       &[vault.signer_nonce],
     ];
-    let result = shared::transfer_token(&vault_signer, &sender, &recipient, amount, &[&seeds]);
-    if result.is_err() {
-      return Err(ErrorCode::TransactionFailed.into());
-    }
+    transfer_token(
+        &vault_signer,
+        &sender,
+        &recipient,
+        amount,
+        &[&seeds]
+      )
+      .expect("Coin98Vault: CPI failed.");
 
     Ok(())
   }
@@ -204,7 +215,7 @@ mod coin98_vault {
       let vault_token1 = &accounts[0];
       require_keys_eq!(*vault_token1.key, schedule.sending_token_account, ErrorCode::InvalidAccount);
       let user_token1 = &accounts[1];
-      shared::transfer_token(
+      transfer_token(
           &user,
           &user_token1,
           &vault_token1,
@@ -215,11 +226,11 @@ mod coin98_vault {
     }
 
     let seeds: &[&[_]] = &[
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
       &[vault.signer_nonce],
     ];
-    shared::transfer_token(
+    transfer_token(
         &vault_signer,
         &vault_token0,
         &user_token0,
@@ -249,7 +260,6 @@ mod coin98_vault {
     receiving_amount: u64,
     sending_amount: u64,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_RedeemTokenMulti");
 
     let vault = &ctx.accounts.vault;
     let vault_signer = &ctx.accounts.vault_signer;
@@ -272,7 +282,7 @@ mod coin98_vault {
       let vault_token1 = &accounts[0];
       require_keys_eq!(*vault_token1.key, schedule.sending_token_account, ErrorCode::InvalidAccount);
       let user_token1 = &accounts[1];
-      shared::transfer_token(
+      transfer_token(
           &user,
           &user_token1,
           &vault_token1,
@@ -285,11 +295,11 @@ mod coin98_vault {
     let vault_token0 = &ctx.accounts.vault_token0;
     let user_token0 = &ctx.accounts.user_token0;
     let seeds: &[&[_]] = &[
-      &[2, 151, 229, 53, 244,  77, 229,  7],
+      &SIGNER_SEED_1,
       vault.to_account_info().key.as_ref(),
       &[vault.signer_nonce],
     ];
-    shared::transfer_token(
+    transfer_token(
         &vault_signer,
         &vault_token0,
         &user_token0,
@@ -301,12 +311,11 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_owner(&ctx.accounts.owner.key, &ctx.accounts.vault))]
+  #[access_control(is_owner(&ctx.accounts.owner.key, &ctx.accounts.vault))]
   pub fn transfer_ownership(
     ctx: Context<TransferOwnershipContext>,
     new_owner: Pubkey,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_TransferOwnership");
 
     let vault = &mut ctx.accounts.vault;
 
@@ -319,7 +328,6 @@ mod coin98_vault {
   pub fn accept_ownership(
     ctx: Context<AcceptOwnershipContext>,
   ) -> Result<()> {
-    msg!("Coin98Vault: Instruction_AcceptOwnership");
 
     let vault = &mut ctx.accounts.vault;
 
@@ -331,32 +339,30 @@ mod coin98_vault {
 }
 
 /// Returns true if the user has root priviledge of the vault
-pub fn verify_owner(user: &Pubkey, vault: &Vault) -> Result<()> {
-  if *user != vault.owner {
-    return Err(ErrorCode::InvalidOwner.into());
-  }
+pub fn is_owner(user: &Pubkey, vault: &Vault) -> Result<()> {
+
+  require_keys_eq!(*user, vault.owner, ErrorCode::Unauthorized);
 
   Ok(())
 }
 
 /// Returns true if the user is the newly apppointed owner of the vault
 pub fn verify_new_owner(user: &Pubkey, vault: &Vault) -> Result<()> {
-  if *user != vault.new_owner {
-    return Err(ErrorCode::InvalidOwner.into());
-  }
+
+  require_keys_eq!(*user, vault.new_owner, ErrorCode::Unauthorized);
 
   Ok(())
 }
 
 /// Returns true if the user is an admin of a specified vault
-pub fn verify_admin(user: &Pubkey, vault: &Vault) -> Result<()> {
+pub fn is_admin(user: &Pubkey, vault: &Vault) -> Result<()> {
   if *user == vault.owner {
    return Ok(());
   }
 
   let result = vault.admins.iter().position(|&key| key == *user);
   if result == None {
-    return Err(ErrorCode::InvalidOwner.into());
+    return Err(ErrorCode::Unauthorized.into());
   }
 
   Ok(())
@@ -383,14 +389,11 @@ pub fn verify_proof(index: u16, user: &Pubkey, receiving_amount: u64, sending_am
   let redemption_data = redemption_params.try_to_vec().unwrap();
   let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
   let leaf = hash(&redemption_data[..]);
-  if !shared::verify_proof(proofs.to_vec(), root, leaf.to_bytes()) {
-    return Err(ErrorCode::Unauthorized.into());
-  }
+  let is_valid_proof = shared::verify_proof(proofs.to_vec(), root, leaf.to_bytes());
+  require!(is_valid_proof, ErrorCode::Unauthorized);
 
   let user_index: usize = index.into();
-  if schedule.redemptions[user_index] {
-    return Err(ErrorCode::Redeemed.into());
-  }
+  require!(schedule.redemptions[user_index] == false, ErrorCode::Redeemed);
 
   Ok(())
 }
@@ -406,15 +409,11 @@ pub fn verify_proof_multi(index: u16, user: &Pubkey, receiving_token_mint: Pubke
   let redemption_data = redemption_params.try_to_vec().unwrap();
   let root: [u8; 32] = schedule.merkle_root.clone().try_into().unwrap();
   let leaf = hash(&redemption_data[..]);
-  if !shared::verify_proof(proofs.to_vec(), root, leaf.to_bytes()) {
-    return Err(ErrorCode::Unauthorized.into());
-  }
+  let is_valid_proof = shared::verify_proof(proofs.to_vec(), root, leaf.to_bytes());
+  require!(is_valid_proof, ErrorCode::Unauthorized);
 
   let user_index: usize = index.into();
-  if schedule.redemptions[user_index] {
-    return Err(ErrorCode::Redeemed.into());
-  }
+  require!(schedule.redemptions[user_index] == false, ErrorCode::Redeemed);
 
   Ok(())
 }
-
