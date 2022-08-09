@@ -31,5 +31,4 @@ rand = "0.8.5"
 mpl-testing-utils= "0.0.2"
 spl-associated-token-account = { version = "~1.0.3",  features = ["no-entrypoint"] }
 spl-token = { version = "~3.2",  features = ["no-entrypoint"] }
-rs_merkle = "1.2.0"
 
