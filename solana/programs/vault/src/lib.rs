@@ -51,9 +51,8 @@ mod coin98_vault {
   use super::*;
 
   pub fn create_vault(
-    ctx: Context<CreateVaultContext>,
+  ctx: Context<CreateVaultContext>,
     _vault_path: Vec<u8>,
-    signer_nonce: u8,
   ) -> Result<()> {
 
     let owner = &ctx.accounts.owner;
@@ -61,6 +60,13 @@ mod coin98_vault {
     let vault = &mut ctx.accounts.vault;
 
     vault.obj_type = ObjType::Vault;
+    let (_, signer_nonce) = Pubkey::find_program_address(
+      &[
+        SIGNER_SEED_1,
+        &vault.key().to_bytes(),
+      ],
+      ctx.program_id,
+    );
     vault.signer_nonce = signer_nonce;
     vault.owner = *owner.key;
     vault.new_owner = anchor_lang::system_program::ID; // Set to empty
@@ -100,6 +106,7 @@ mod coin98_vault {
     let schedule = &mut ctx.accounts.schedule;
 
     schedule.obj_type = if use_multi_token { ObjType::DistributionMulti } else { ObjType::Distribution };
+    schedule.nonce = *ctx.bumps.get("schedule").unwrap();
     schedule.event_id = event_id;
     schedule.vault_id = vault.key();
     schedule.timestamp = timestamp;

@@ -36,7 +36,6 @@ const SCHEDULE_DERIVATION_PATH_LAYOUT: borsh.Layout<ScheduleDerivationPath> = bo
 
 interface CreateVaultRequest {
   vaultPath: Buffer
-  signerNonce: number
 }
 
 interface SetVaultRequest {
@@ -120,13 +119,11 @@ export class VaultInstructionService {
     payerAddress: PublicKey,
     vaultAddress: PublicKey,
     vaultPath: Buffer,
-    signerNonce: number,
     vaultProgramId: PublicKey,
   ): TransactionInstruction {
 
     const request: CreateVaultRequest = {
       vaultPath,
-      signerNonce,
     }
     const data = coder.instruction.encode('createVault', request)
 
@@ -244,10 +241,12 @@ export class VaultInstructionService {
     amount: BN,
     vaultProgramId: PublicKey,
   ): TransactionInstruction {
+
     const request: WithdrawSolRequest = {
       amount,
     }
     const data = coder.instruction.encode('withdrawSol', request)
+
     const keys: AccountMeta[] = [
       { pubkey: ownerAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: false },
@@ -272,10 +271,12 @@ export class VaultInstructionService {
     amount: BN,
     vaultProgramId: PublicKey,
   ): TransactionInstruction {
+
     const request: WithdrawTokenRequest = {
       amount,
     }
     const data = coder.instruction.encode('withdrawToken', request)
+
     const keys: AccountMeta[] = [
       { pubkey: ownerAddress, isSigner: true, isWritable: false },
       { pubkey: vaultAddress, isSigner: false, isWritable: false },

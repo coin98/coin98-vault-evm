@@ -34,7 +34,7 @@ pub struct CreateVaultContext<'info> {
     ],
     bump,
     payer = owner,
-    space = Vault::size(),
+    space = 16 + Vault::size(),
   )]
   pub vault: Account<'info, Vault>,
 
@@ -70,7 +70,7 @@ pub struct CreateScheduleContext<'info> {
     ],
     bump,
     payer = admin,
-    space = Schedule::size(user_count),
+    space = 16 + Schedule::size(user_count),
   )]
   pub schedule: Account<'info, Schedule>,
 
@@ -88,6 +88,11 @@ pub struct SetScheduleContext<'info> {
 
   #[account(
     mut,
+    seeds = [
+      &SCHEDULE_SEED_1,
+      &shared::derive_event_id(schedule.event_id).as_ref(),
+    ],
+    bump = schedule.nonce,
     constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount
   )]
   pub schedule: Account<'info, Schedule>,
@@ -161,6 +166,11 @@ pub struct RedeemTokenContext<'info> {
 
   #[account(
     mut,
+    seeds = [
+      &SCHEDULE_SEED_1,
+      &shared::derive_event_id(schedule.event_id).as_ref(),
+    ],
+    bump = schedule.nonce,
     constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount,
     constraint = schedule.obj_type == ObjType::Distribution @ErrorCode::InvalidAccount,
   )]
@@ -205,6 +215,11 @@ pub struct RedeemTokenMultiContext<'info> {
 
   #[account(
     mut,
+    seeds = [
+      &SCHEDULE_SEED_1,
+      &shared::derive_event_id(schedule.event_id).as_ref(),
+    ],
+    bump = schedule.nonce,
     constraint = schedule.vault_id == vault.key() @ErrorCode::InvalidAccount,
     constraint = schedule.obj_type == ObjType::DistributionMulti @ErrorCode::InvalidAccount,
   )]

@@ -11,6 +11,7 @@ pub enum ObjType {
 #[account]
 pub struct Schedule {
   pub obj_type: ObjType,
+  pub nonce: u8,
   pub event_id: u64,
   pub vault_id: Pubkey,
   pub timestamp: i64,
@@ -27,7 +28,7 @@ pub struct Schedule {
 
 impl Schedule {
   pub fn size(user_count: u16) -> usize {
-    16 + 1 + 8 + 32 + 8 + 36 + 32 + 32 + 32 + 32 + 1 + (4 + usize::from(user_count))
+    1 + 1 + 8 + 32 + 8 + 36 + 32 + 32 + 32 + 32 + 1 + (4 + usize::from(user_count))
   }
 }
 
@@ -42,7 +43,7 @@ pub struct Vault {
 
 impl Vault {
   pub fn size() -> usize {
-    16 + 1 + 1 + 32 + 32 + 516
+    1 + 1 + 32 + 32 + (4 + 32 * 16)
   }
 }
 

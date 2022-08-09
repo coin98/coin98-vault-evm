@@ -11,6 +11,18 @@ arrayref = "0.3.6"
 num_enum = "0.5.4"
 solana-program = "1.9.13"
 
+[dev-dependencies]
+env_logger="~0.9.0"
+solana-program = "1.9.15"
+solana-program-test = "~1.9.15"
+solana-sdk = "~1.9.15"
+solana-cli-config = "1.9.5"
+anchor-client = "~0.24.2"
+rand = "0.8.5"
+mpl-testing-utils= "0.0.2"
+spl-associated-token-account = { version = "~1.0.3",  features = ["no-entrypoint"] }
+spl-token = { version = "~3.2",  features = ["no-entrypoint"] }
+
 [features]
 cpi = ["no-entrypoint"]
 default = []
