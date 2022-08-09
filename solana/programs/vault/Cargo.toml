@@ -7,8 +7,10 @@ edition = "2018"
 
 [dependencies]
 anchor-lang = "0.24.2"
-solana-program = "1.9.13"
+solana-program = "1.9.15"
+# solana-sdk = "1.9.15"
 
+# solana-sdk = "1.11.4"carg
 [features]
 cpi = ["no-entrypoint"]
 default = []
@@ -18,3 +20,15 @@ no-idl = []
 [lib]
 name = "vault"
 crate-type = ["cdylib", "lib"]
+[dev-dependencies]
+env_logger="~0.9.0"
+solana-program = "1.9.15"
+solana-program-test = "~1.9.15"
+solana-sdk = "~1.9.15"
+solana-cli-config = "1.9.5"
+anchor-client = "~0.24.2"
+rand = "0.8.5"
+mpl-testing-utils= "0.0.2"
+spl-associated-token-account = { version = "~1.0.3",  features = ["no-entrypoint"] }
+spl-token = { version = "~3.2",  features = ["no-entrypoint"] }
+
