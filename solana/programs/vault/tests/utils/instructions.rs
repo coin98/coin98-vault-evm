@@ -176,3 +176,45 @@ pub fn redeem_token_data_instruction(
     instruction
 
 }
+pub fn redeem_token_with_fee_data_instruction(
+    vault: &Pubkey,
+    schedule: &Pubkey,
+    vault_signer: &Pubkey,
+    vault_token0: &Pubkey,
+    vault_token1: &Pubkey,
+    user: &Pubkey,
+    user_token0: &Pubkey,
+    user_token1: &Pubkey,
+    index: u16,
+    proofs: Vec<[u8; 32]>,
+    receiving_amount: u64,
+    sending_amount: u64,
+    )->Instruction{
+
+    let accounts = vault::accounts::RedeemTokenWithFeeContext {
+        vault: *vault,
+        schedule: *schedule,
+        vault_signer: *vault_signer,
+        vault_token0: *vault_token0,
+        vault_token1: *vault_token1,
+        user: *user,
+        user_token0: *user_token0,
+        user_token1: *user_token1,
+        token_program: TOKEN_PROGRAM_ID,
+    }.to_account_metas(None);
+
+    let data = vault::instruction::RedeemTokenWithFee{
+        index: index,
+        proofs: proofs,
+        receiving_amount: receiving_amount,
+        sending_amount: sending_amount
+    }.data();
+    let instruction = Instruction {
+        program_id: vault::id(),
+        data,
+        accounts
+    };
+
+    instruction
+
+}

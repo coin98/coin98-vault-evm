@@ -16,7 +16,7 @@ use utils::instructions::*;
 
 
 #[tokio::test]
-async fn test_create_vault() {
+async fn test_token_vault() {
     println!(">>>>>>>>>> test c98_vault <<<<<<<<<<<<<<<");
     let mut context = c98_vault_program_test().start_with_context().await;
     let payer_wallet = get_default_wallet().unwrap();
@@ -40,12 +40,8 @@ async fn test_create_vault() {
     create_mint(&mut context, &cusd_mint, &payer_wallet.pubkey(), None).await.unwrap();
 
 
-    // let payer_c98_token_account = create_associated_token_account(&mut context, &payer_wallet.pubkey(), &c98_mint.pubkey()).await.unwrap();
-    // let payer_cusd_token_account = create_associated_token_account(&mut context, &payer_wallet.pubkey(), &cusd_mint.pubkey()).await.unwrap();
-
     let user1_c98_token_account = create_associated_token_account(&mut context, &user1.pubkey(), &c98_mint.pubkey()).await.unwrap();
     let user1_cusd_token_account = create_associated_token_account(&mut context, &user1.pubkey(), &cusd_mint.pubkey()).await.unwrap();
-
    
     //create vault
     let (vault_address,_) = find_vault_address(&feed_path);
@@ -58,14 +54,11 @@ async fn test_create_vault() {
 
     process_transaction(&mut context, &Vec::from([create_vault_data, set_vault_data]), &Vec::from([&payer_wallet])).await.unwrap();
 
-    // mint_tokens(&mut context, &c98_mint.pubkey(), &payer_c98_token_account, 1_000_000_000_000, &payer_wallet.pubkey(), Some(&payer_wallet)).await.unwrap();
     mint_tokens(&mut context, &c98_mint.pubkey(), &user1_c98_token_account, 1_000_000_000_000, &payer_wallet.pubkey(), Some(&payer_wallet)).await.unwrap();
     mint_tokens(&mut context, &cusd_mint.pubkey(), &user1_cusd_token_account, 1_000_000_000_000, &payer_wallet.pubkey(), Some(&payer_wallet)).await.unwrap();
     mint_tokens(&mut context, &c98_mint.pubkey(), &vault_c98_token_account, 1_000_000_000_000, &payer_wallet.pubkey(), Some(&payer_wallet)).await.unwrap();
     mint_tokens(&mut context, &cusd_mint.pubkey(), &vault_cusd_token_account, 1_000_000_000_000, &payer_wallet.pubkey(), Some(&payer_wallet)).await.unwrap();
     
-
-
     let user1_data = vault::RedemptionParams{
     index: 0,
     address: user1.pubkey(),
@@ -100,7 +93,6 @@ async fn test_create_vault() {
 
     let mut user1_proofs: Vec<[u8; 32]> =  Vec::new();
     user1_proofs.push(hash_user2);
-    println!("verify");
     let value : bool = vault::shared::verify_proof(user1_proofs.clone(), merkle_root, hash_user1);
     println!("{:?}", value);
     let redeem_token_data = redeem_token_with_fee_data_instruction(
