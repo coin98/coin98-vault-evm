@@ -4,14 +4,9 @@ use anchor_lang::solana_program::keccak::{
 };
 use std::convert::TryInto;
 
-static TOKEN_PROGRAM_ID: Pubkey = Pubkey::new_from_array([6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169]);
-
-pub fn is_system_program<'a>(account: &AccountInfo<'a>) -> bool {
-  *account.key == anchor_lang::system_program::ID
-}
-
-pub fn is_token_program<'a>(account: &AccountInfo<'a>) -> bool {
-  *account.key == TOKEN_PROGRAM_ID
+#[derive(AnchorSerialize, AnchorDeserialize, Default)]
+pub struct DeriveEventIdParam {
+  pub event_id: u64,
 }
 
 pub fn derive_event_id(event_id: u64) -> [u8; 8] {
@@ -21,49 +16,6 @@ pub fn derive_event_id(event_id: u64) -> [u8; 8] {
   let vec = data.try_to_vec().unwrap();
   let arr: [u8; 8] = vec.try_into().unwrap();
   arr
-}
-
-pub fn transfer_lamports<'info>(
-  from_pubkey: &AccountInfo<'info>,
-  to_pubkey: &AccountInfo<'info>,
-  amount: u64,
-  signer_seeds: &[&[&[u8]]],
-) -> std::result::Result<(), ProgramError> {
-  let instruction = &solana_program::system_instruction::transfer(from_pubkey.key, to_pubkey.key, amount);
-  if signer_seeds.len() == 0 {
-    solana_program::program::invoke(&instruction, &[from_pubkey.clone(), to_pubkey.clone()])
-  }
-  else {
-    solana_program::program::invoke_signed(&instruction, &[from_pubkey.clone(), to_pubkey.clone()], &signer_seeds)
-  }
-}
-
-pub fn transfer_token<'info>(
-  owner: &AccountInfo<'info>,
-  from_pubkey: &AccountInfo<'info>,
-  to_pubkey: &AccountInfo<'info>,
-  amount: u64,
-  signer_seeds: &[&[&[u8]]],
-) -> std::result::Result<(), ProgramError> {
-  let data = TransferTokenParams {
-    instruction: 3,
-    amount: amount,
-  };
-  let instruction = solana_program::instruction::Instruction {
-    program_id: TOKEN_PROGRAM_ID,
-    accounts: vec![
-      solana_program::instruction::AccountMeta::new(*from_pubkey.key, false),
-      solana_program::instruction::AccountMeta::new(*to_pubkey.key, false),
-      solana_program::instruction::AccountMeta::new_readonly(*owner.key, true),
-    ],
-    data: data.try_to_vec().unwrap(),
-  };
-  if signer_seeds.len() == 0 {
-    solana_program::program::invoke(&instruction, &[from_pubkey.clone(), to_pubkey.clone(), owner.clone()])
-  }
-  else {
-    solana_program::program::invoke_signed(&instruction, &[from_pubkey.clone(), to_pubkey.clone(), owner.clone()], &signer_seeds)
-  }
 }
 
 /// Returns true if a `leaf` can be proved to be a part of a Merkle tree
@@ -83,15 +35,4 @@ pub fn verify_proof(proofs: Vec<[u8; 32]>, root: [u8; 32], leaf: [u8; 32]) -> bo
   }
   // Check if the computed hash (root) is equal to the provided root
   computed_hash == root
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Default)]
-pub struct DeriveEventIdParam {
-  pub event_id: u64,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Default)]
-pub struct TransferTokenParams {
-  pub instruction: u8,
-  pub amount: u64,
 }
