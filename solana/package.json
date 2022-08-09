@@ -6,11 +6,12 @@
   "types": "services/index.d.js",
   "scripts": {
     "maintain": "anchor test --skip-local-validator",
-    "test": "anchor test --skip-build --skip-deploy --skip-local-validator",
+    "test": "ts-mocha ./test/*.spec.ts --timeout 60000",
     "build:services": "tsc",
     "build:program": "anchor build",
     "build": "npm run build:program && npm run build:services",
     "prerelease": "npm run test && npm run build && cp .npmrc dist",
+    "deploy": "solana program deploy ./target/deploy/vault.so --url localhost",
     "release": "standard-version && cp package.json dist && git push --follow-tags origin master && cd dist && npm publish"
   },
   "repository": {
