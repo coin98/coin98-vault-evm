@@ -249,7 +249,7 @@ mod coin98_vault {
     Ok(())
   }
 
-  #[access_control(verify_schedule(&ctx.accounts.schedule, ObjType::Distribution))]
+  #[access_control(verify_schedule(&ctx.accounts.schedule, ObjType::DistributionMulti))]
   #[access_control(verify_proof_multi(
     index,
     &ctx.accounts.user.key,

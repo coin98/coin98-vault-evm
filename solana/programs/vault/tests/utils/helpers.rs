@@ -1,4 +1,4 @@
-use solana_program_test::*;
+ use solana_program_test::*;
 use solana_sdk::{
     account::Account,
     program_pack::Pack,
@@ -175,9 +175,12 @@ pub async fn process_transaction(context: &mut ProgramTestContext, instructions:
     Ok(())
 }
 
-pub fn hash_redemption(redemption: vault::RedemptionParams)-> [u8 ;32]{
-
+pub fn hash_token_redemption(redemption: vault::state::RedemptionParams)-> [u8 ;32]{
     let redemption_data = redemption.try_to_vec().unwrap();
     hash(&redemption_data[..]).to_bytes()
-    
+}
+
+pub fn hash_nft_redemption(redemption: vault::state::RedemptionMultiParams)-> [u8 ;32]{
+    let redemption_data = redemption.try_to_vec().unwrap();
+    hash(&redemption_data[..]).to_bytes()
 }

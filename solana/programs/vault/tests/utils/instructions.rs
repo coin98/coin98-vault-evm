@@ -13,7 +13,8 @@ pub fn find_vault_address(path: &Vec<u8>) -> (Pubkey, u8) {
 }
 
 pub fn find_schedule_address(event_id: u64) -> (Pubkey, u8) {
-    let vault_seeds = &[CREATE_SCHEDULE_SEEDS, &vault::shared::derive_event_id(event_id)];
+    let seed_id = vault::shared::derive_event_id(event_id);
+    let vault_seeds = &[CREATE_SCHEDULE_SEEDS, &seed_id.as_ref()];
     Pubkey::find_program_address(vault_seeds, &vault::id())
 }
 pub fn find_vault_signer_address(vault_address:  &Pubkey) -> (Pubkey, u8) {
@@ -28,7 +29,6 @@ pub fn find_vault_signer_address(vault_address:  &Pubkey) -> (Pubkey, u8) {
 pub fn create_vault_data_instruction(
     owner: &Pubkey,
     path: Vec<u8>,
-    signer_nonce: u8,
 )-> Instruction{
     let (vault, _): (Pubkey, u8) = find_vault_address(&path);
     let accounts = vault::accounts::CreateVaultContext{
@@ -39,7 +39,6 @@ pub fn create_vault_data_instruction(
 
     let data = vault::instruction::CreateVault {
         _vault_path: path,
-        signer_nonce: signer_nonce
     }.data();
 
 
@@ -80,6 +79,7 @@ pub fn create_schedule_data_instruction(
     event_id: u64,
     timestamp: i64,
     merkle_root: [u8; 32],
+    use_multi_token: bool,
     receiving_token_mint: &Pubkey,
     receiving_token_account: &Pubkey,
     sending_token_mint: &Pubkey,
@@ -98,6 +98,7 @@ pub fn create_schedule_data_instruction(
         event_id: event_id,
         timestamp: timestamp,
         merkle_root: merkle_root,
+        use_multi_token: use_multi_token,
         receiving_token_mint: *receiving_token_mint,
         receiving_token_account: *receiving_token_account,
         sending_token_mint: *sending_token_mint,
@@ -113,7 +114,7 @@ pub fn create_schedule_data_instruction(
     instruction
 }
 
-pub fn set_schedule_status_data_instruction( 
+pub fn set_schedule_status_data_instruction(
     admin: &Pubkey,
     vault: &Pubkey,
     event_id: u64,
@@ -149,9 +150,10 @@ pub fn redeem_token_data_instruction(
     proofs: Vec<[u8; 32]>,
     receiving_amount: u64,
     sending_amount: u64,
+    extra_accounts: Vec<Pubkey>
     )->Instruction{
 
-    let accounts = vault::accounts::RedeemTokenContext {
+    let mut accounts = vault::accounts::RedeemTokenContext {
         vault: *vault,
         schedule: *schedule,
         vault_signer: *vault_signer,
@@ -160,7 +162,9 @@ pub fn redeem_token_data_instruction(
         user_token0: *user_token0,
         token_program: TOKEN_PROGRAM_ID,
     }.to_account_metas(None);
-
+    for account in extra_accounts.iter() {
+        accounts.push(AccountMeta::new(*account, false));
+    }
     let data = vault::instruction::RedeemToken{
         index: index,
         proofs: proofs,
@@ -176,36 +180,38 @@ pub fn redeem_token_data_instruction(
     instruction
 
 }
-pub fn redeem_token_with_fee_data_instruction(
+
+pub fn redeem_nft_data_instruction(
     vault: &Pubkey,
     schedule: &Pubkey,
     vault_signer: &Pubkey,
     vault_token0: &Pubkey,
-    vault_token1: &Pubkey,
     user: &Pubkey,
     user_token0: &Pubkey,
-    user_token1: &Pubkey,
     index: u16,
     proofs: Vec<[u8; 32]>,
+    receiving_token_mint: &Pubkey,
     receiving_amount: u64,
     sending_amount: u64,
+    extra_accounts: Vec<Pubkey>
     )->Instruction{
 
-    let accounts = vault::accounts::RedeemTokenWithFeeContext {
+    let mut accounts = vault::accounts::RedeemTokenMultiContext {
         vault: *vault,
         schedule: *schedule,
         vault_signer: *vault_signer,
         vault_token0: *vault_token0,
-        vault_token1: *vault_token1,
         user: *user,
         user_token0: *user_token0,
-        user_token1: *user_token1,
         token_program: TOKEN_PROGRAM_ID,
     }.to_account_metas(None);
-
-    let data = vault::instruction::RedeemTokenWithFee{
+    for account in extra_accounts.iter() {
+        accounts.push(AccountMeta::new(*account, false));
+    }
+    let data = vault::instruction::RedeemTokenMulti{
         index: index,
         proofs: proofs,
+        receiving_token_mint: *receiving_token_mint,
         receiving_amount: receiving_amount,
         sending_amount: sending_amount
     }.data();
@@ -218,3 +224,4 @@ pub fn redeem_token_with_fee_data_instruction(
     instruction
 
 }
+
