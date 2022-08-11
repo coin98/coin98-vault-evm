@@ -1,22 +1,17 @@
  use solana_program_test::*;
 use solana_sdk::{
-    account::Account,
     program_pack::Pack,
     pubkey::Pubkey,
     signer::{keypair::Keypair, Signer},
     system_instruction,
     transaction::Transaction,
     transport::TransportError,
-    transport
 };
 use anchor_lang::AnchorSerialize;
 use anchor_lang::solana_program::keccak::{
   hash,
 };
 use solana_program::instruction::Instruction;
-use spl_token::state::Mint;
-
-use super::instructions::find_vault_address;
 
 pub fn c98_vault_program_test() -> ProgramTest {
     let program = ProgramTest::new("vault", vault::id(), None);
@@ -173,6 +168,20 @@ pub async fn process_transaction(context: &mut ProgramTestContext, instructions:
         .unwrap();
 
     Ok(())
+}
+
+pub async fn process_transaction_with_error(context: &mut ProgramTestContext, instructions: &Vec<Instruction>, signers: &Vec<&Keypair>) -> Result<(), TransportError> {
+    let tx = Transaction::new_signed_with_payer(
+        instructions,
+        Some(&signers[0].pubkey()),
+        signers,
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(tx)
+        .await
 }
 
 pub fn hash_token_redemption(redemption: vault::state::RedemptionParams)-> [u8 ;32]{
