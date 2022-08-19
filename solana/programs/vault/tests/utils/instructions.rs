@@ -54,14 +54,14 @@ pub fn create_vault_data_instruction(
 pub fn set_vault_data_instruction(
     owner: &Pubkey,
     path: Vec<u8>,
-    adimins: Vec<Pubkey>)-> Instruction{
+    admins: Vec<Pubkey>)-> Instruction{
     let (vault, _): (Pubkey, u8) = find_vault_address(&path);
     let accounts = vault::accounts::SetVaultContext {
         owner: *owner,
         vault: vault,
     }.to_account_metas(None);
     let data = vault::instruction::SetVault{
-        admins:  adimins
+        admins:  admins
     }.data();
     let instruction = Instruction {
         program_id: vault::id(),
@@ -225,3 +225,108 @@ pub fn redeem_nft_data_instruction(
 
 }
 
+pub fn withdraw_token_data_instruction(
+    admin: &Pubkey,
+    vault: &Pubkey,
+    vault_signer: &Pubkey,
+    sender: &Pubkey,
+    recipient: &Pubkey,
+    amount: u64
+    )->Instruction{
+
+    let accounts = vault::accounts::WithdrawTokenContext {
+        admin: *admin,
+        vault: *vault,
+        vault_signer: *vault_signer,
+        sender: *sender,
+        recipient: *recipient,
+        token_program: TOKEN_PROGRAM_ID,
+    }.to_account_metas(None);
+
+    let data = vault::instruction::WithdrawToken{
+        amount: amount
+    }.data();
+    let instruction = Instruction {
+        program_id: vault::id(),
+        data,
+        accounts
+    };
+
+    instruction
+
+}
+pub fn withdraw_sol_data_instruction(
+    admin: &Pubkey,
+    vault: &Pubkey,
+    vault_signer: &Pubkey,
+    recipient: &Pubkey,
+    amount: u64
+    )->Instruction{
+
+    let accounts = vault::accounts::WithdrawSolContext {
+        admin: *admin,
+        vault: *vault,
+        vault_signer: *vault_signer,
+        recipient: *recipient,
+        system_program: system_program::id(),
+    }.to_account_metas(None);
+
+    let data = vault::instruction::WithdrawSol{
+        amount: amount
+    }.data();
+    let instruction = Instruction {
+        program_id: vault::id(),
+        data,
+        accounts
+    };
+
+    instruction
+
+}
+pub fn transfer_ownership_data_instruction(
+    owner: &Pubkey,
+    vault: &Pubkey,
+    new_owner: &Pubkey
+    )->Instruction{
+
+    let accounts = vault::accounts::TransferOwnershipContext {
+        owner: *owner,
+        vault: *vault,
+
+    }.to_account_metas(None);
+
+    let data = vault::instruction::TransferOwnership{
+        new_owner: *new_owner
+    }.data();
+    let instruction = Instruction {
+        program_id: vault::id(),
+        data,
+        accounts
+    };
+
+    instruction
+
+}
+pub fn accept_ownership_data_instruction(
+    owner: &Pubkey,
+    vault: &Pubkey,
+    )->Instruction{
+
+    let accounts = vault::accounts::AcceptOwnershipContext {
+        new_owner: *owner,
+        vault: *vault,
+
+    }.to_account_metas(None);
+
+    let data = vault::instruction::AcceptOwnership{
+
+    }.data();
+    let instruction = Instruction {
+        program_id: vault::id(),
+        data,
+        accounts
+    };
+
+    instruction
+
+}
