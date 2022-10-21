@@ -1,4 +1,6 @@
 import '@nomicfoundation/hardhat-toolbox';
+import "@nomiclabs/hardhat-web3";
+import "@nomiclabs/hardhat-ethers";
 
 module.exports = {
   solidity: {

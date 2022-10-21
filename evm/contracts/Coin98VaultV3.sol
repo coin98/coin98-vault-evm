@@ -21,7 +21,7 @@ interface ICoin98Vault {
 /**
  * @dev Coin98Vault contract to enable vesting funds to investors
  */
-contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
+contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
 
   using SafeERC20 for IERC20;
 
@@ -36,12 +36,14 @@ contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
     bytes32 merkleRoot;
     address receivingToken;
     address sendingToken;
+    uint8 typeEvent; //  0 : ERC20 --- 1 : ERC721  --- ERC1155: 2
     uint8 isActive;
   }
 
+
   event AdminAdded(address indexed admin);
   event AdminRemoved(address indexed admin);
-  event EventCreated(uint256 eventId, EventData eventData);
+  event EventCreated(uint256 eventId, uint8 typeEvent, EventData eventData);
   event EventUpdated(uint256 eventId, uint8 isActive);
   event Redeemed(uint256 eventId, uint256 index, address indexed recipient, address indexed receivingToken, uint256 receivingTokenAmount, address indexed sendingToken, uint256 sendingTokenAmount);
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
@@ -84,6 +86,59 @@ contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
     __Ownable_init();
     _factory = msg.sender;
   }
+
+  /// @dev claim the NFT which user is eligible from schedule
+  /// @param eventId_ event ID
+  /// @param index_ index of redemption pre-assigned to user
+  /// @param recipient_ index of redemption pre-assigned to user
+  /// @param receivingId_ ID NFT of *receivingToken* user is eligible to redeem
+  /// @param receivingAmount_ amount of *receivingToken* user is eligible to redeem
+  /// @param sendingAmount_ amount of *sendingToken* user must send the contract to get *receivingToken*
+  /// @param proofs additional data to validate that the inputted information is valid
+  function redeemNFT(uint256 eventId_, uint256 index_, address recipient_, uint256  receivingId_, uint256 receivingAmount_, uint256 sendingAmount_, bytes32[] calldata proofs) public payable {
+    uint256 fee = IVaultConfig(_factory).fee();
+    uint256 gasLimit = IVaultConfig(_factory).gasLimit();
+    if(fee > 0) {
+      require(_msgValue() == fee, "C98Vault: Invalid fee");
+    }
+
+    EventData storage eventData = _eventDatas[eventId_];
+    require(eventData.isActive > 0, "C98Vault: Invalid event");
+    require(eventData.timestamp <= block.timestamp, "C98Vault: Schedule locked");
+    require(recipient_ != address(0), "C98Vault: Invalid schedule");
+    require(eventData.typeEvent == 1 || eventData.typeEvent == 2  , "C98Vault: Invalid event");
+
+    bytes32 node = keccak256(abi.encodePacked(index_, recipient_, receivingId_, receivingAmount_, sendingAmount_));
+    require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
+    require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
+
+
+    if(eventData.typeEvent == 1) {
+      require(IERC721(eventData.receivingToken).ownerOf(receivingId_) == address(this), "C98Vault: Insufficient NFT");
+    }
+     else {
+      uint256 availableAmount = IERC1155(eventData.receivingToken).balanceOf(address(this),receivingId_);
+      require(receivingAmount_ <= availableAmount, "C98Vault: Insufficient token");
+    }
+
+    _setRedemption(eventId_, index_);
+
+    if(sendingAmount_ > 0) {
+      IERC20(eventData.sendingToken).safeTransferFrom(_msgSender(), address(this), sendingAmount_);
+    }
+
+
+    if(eventData.typeEvent == 1) {
+      IERC721(eventData.receivingToken).safeTransferFrom(address(this), recipient_, receivingId_);
+    }
+    else {
+      IERC1155(eventData.receivingToken).safeTransferFrom(address(this),recipient_, receivingId_, receivingAmount_, "");
+    }
+
+    emit Redeemed(eventId_, index_, recipient_, eventData.receivingToken, receivingId_, eventData.sendingToken, sendingAmount_);
+  }
+
+
 
   /// @dev claim the token which user is eligible from schedule
   /// @param eventId_ event ID
@@ -179,17 +234,38 @@ contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
   /// @param timestamp_ when the token will be available for redemption
   /// @param receivingToken_ token user will be receiving, mandatory
   /// @param sendingToken_ token user need to send in order to receive *receivingToken_*
-  function createEvent(uint256 eventId_, uint256 timestamp_, bytes32 merkleRoot_, address receivingToken_, address sendingToken_) public onlyAdmin {
+  function createEvent(uint8 typeEvent_ , uint256 eventId_, uint256 timestamp_, bytes32 merkleRoot_, address receivingToken_, address sendingToken_) public onlyAdmin {
     require(_eventDatas[eventId_].timestamp == 0, "C98Vault: Event existed");
     require(timestamp_ != 0, "C98Vault: Invalid timestamp");
+    require(typeEvent_ == 0 || typeEvent_ == 1 || typeEvent_ == 2, "Invalid Type Event");
     _eventDatas[eventId_].timestamp = timestamp_;
     _eventDatas[eventId_].merkleRoot = merkleRoot_;
     _eventDatas[eventId_].receivingToken = receivingToken_;
     _eventDatas[eventId_].sendingToken = sendingToken_;
+    _eventDatas[eventId_].typeEvent = typeEvent_;
     _eventDatas[eventId_].isActive = 1;
-
-    emit EventCreated(eventId_, _eventDatas[eventId_]);
+    emit EventCreated(eventId_, typeEvent_, _eventDatas[eventId_]);
   }
+
+  // /// @dev create an event to specify how user can claim their NFT
+  // /// @param eventId_ event ID
+  // /// @param timestamp_ when the token will be available for redemption
+  // /// @param receiveNFT_ token user will be receiving, mandatory
+  // /// @param sendingNFT_ token user need to send in order to receive *receivingToken_*
+
+  // function createEvent(uint256 eventId_, uint256 timestamp_, bytes32 merkleRoot_, address receiveNFT_, address sendingNFT_) public onlyAdmin {
+  //   require(_eventDatas[eventId_].timestamp == 0, "C98Vault: Event existed");
+  //   require(timestamp_ != 0, "C98Vault: Invalid timestamp");
+  //   _eventDatas[eventId_].timestamp = timestamp_;
+  //   _eventDatas[eventId_].merkleRoot = merkleRoot_;
+  //   _eventDatas[eventId_].receivingToken = receiveNFT_;
+  //   _eventDatas[eventId_].sendingToken = sendingNFT_;
+  //   _eventDatas[eventId_].isActive = 1;
+
+  //   emit EventCreated(eventId_, _eventDatas[eventId_]);
+  // }
+
+
 
   /// @dev enable/disable a particular event
   /// @param eventId_ event ID
