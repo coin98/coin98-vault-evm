@@ -18,7 +18,6 @@ export class MerkleDistributionService {
     schedules: Schedule[]
   ): MerkleTree {
     const hashes = schedules.map(schedule => {
-      console.log('schedule')
       return this.computeHash(schedule)
     })
     return new MerkleTree(hashes)
@@ -37,7 +36,6 @@ export class MerkleDistributionService {
 
   static printProof(tree: MerkleTree, index: number) {
     const nodes = tree.nodes()
-    console.log('nodes',nodes);
     const leaf = nodes[0][index]
     const root = tree.root()
     const proofs = []
@@ -84,7 +82,7 @@ export class MerkleDistributionService {
 
   static computeHash(schedule: Schedule): Buffer {
     const web3 = new Web3()
-    const hash = web3.utils.soliditySha3(schedule.index, `0x${schedule.address.toString('hex')}`,schedule.receivingId , schedule.receivingAmount.toNumber(), schedule.sendingAmount.toNumber())
+    const hash = web3.utils.soliditySha3(schedule.index, `0x${schedule.address.toString('hex')}`,schedule.receivingId ,schedule.receivingAmount.toNumber(), schedule.sendingAmount.toNumber())
     return Buffer.from(hash.substring(2), 'hex')
   }
 }

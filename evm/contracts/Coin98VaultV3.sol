@@ -114,6 +114,7 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
 
 
     if(eventData.typeEvent == 1) {
+    // require(0==1,"Successfully");
       require(IERC721(eventData.receivingToken).ownerOf(receivingId_) == address(this), "C98Vault: Insufficient NFT");
     }
      else {
@@ -137,8 +138,6 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
 
     emit Redeemed(eventId_, index_, recipient_, eventData.receivingToken, receivingId_, eventData.sendingToken, sendingAmount_);
   }
-
-
 
   /// @dev claim the token which user is eligible from schedule
   /// @param eventId_ event ID
