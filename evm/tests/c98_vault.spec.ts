@@ -168,7 +168,6 @@ describe("Coin98_Vault_test", function () {
     const balanceOfUser = await erc20Token.balanceOf(owner[1].address);
 
     expect(Number(web3.utils.fromWei(balanceOfUser.toString(),'ether')), "Insufficient token").is.greaterThanOrEqual(1);
-    // expect(Number(web3.utils.fromWei(balanceOfUser.toString(),'ether')), "Balance of owner isn't valid").is.equal(1000000);
 
   })
 
@@ -237,7 +236,6 @@ describe("Coin98_Vault_test", function () {
     );
 
   })
-
 
   it("Create new event ERC1155", async function () {
     const coin98VaultFactory: Coin98VaultFactory = await Coin98VaultFactory.attach(coin98VaultFactoryAddress);
@@ -383,6 +381,7 @@ async function _safeMintNFT721(
   const safeMintNFT = await nft721.safeMintToUser(recipient_, uri_);
   const transactionResult = await getTransaction(safeMintNFT.hash);
   expect(transactionResult?.status, "Transaction fails").is.true;
+
 }
 
 async function _safeMintNFT1155(
@@ -394,6 +393,7 @@ async function _safeMintNFT1155(
   const safeMintNFT = await nft1155.mint(recipient_,amount,uri_);
   const transactionResult = await getTransaction(safeMintNFT.hash);
   expect(transactionResult?.status, "Transaction fails").is.true;
+
 }
 
 async function _safeMintTokenERC20(
@@ -404,6 +404,7 @@ async function _safeMintTokenERC20(
   const safeMintToken = await erc20.mintTo(amount,recipient_);
   const transactionResult = await getTransaction(safeMintToken.hash);
   expect(transactionResult?.status, "Transaction fails").is.true;
+
 }
 
 async function _approve (
@@ -412,7 +413,6 @@ async function _approve (
   amount: number,
   account: any
 ) {
-
   const upgradeAllowance = await erc20.connect(account).approve(recipient,amount);
   const transactionResult = await getTransaction(upgradeAllowance.hash);
   expect(transactionResult?.status, "Transaction fails").is.true;
@@ -425,10 +425,10 @@ async function createVault(
   salt_: string,
   sendFrom: any
 ) {
-
   const createdVault = await coin98VaultFactory.connect(sendFrom).createVault(owner_, salt_);
   const transactionResult = await getTransaction(createdVault.hash);
   expect(transactionResult?.status, "Transaction fails").is.true;
+
 }
 
 
@@ -453,6 +453,7 @@ async function createEvent(
   );
   const transactionResult = await getTransaction(createdEvent.hash);
   expect(transactionResult?.status, "Transaction fails").is.true;
+
 }
 
 async function redeemNFT(
@@ -478,7 +479,6 @@ async function redeemNFT(
   const transactionResult = await getTransaction(redeemNFT.hash);
   expect(transactionResult?.status, "Transaction fails").is.true;
 
-
 };
 
 
@@ -487,4 +487,5 @@ async function getTransaction(
 ) {
   const transaction = await web3.eth.getTransactionReceipt(hash);
   return transaction;
+
 }

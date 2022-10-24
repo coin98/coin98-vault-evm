@@ -246,25 +246,6 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
     emit EventCreated(eventId_, typeEvent_, _eventDatas[eventId_]);
   }
 
-  // /// @dev create an event to specify how user can claim their NFT
-  // /// @param eventId_ event ID
-  // /// @param timestamp_ when the token will be available for redemption
-  // /// @param receiveNFT_ token user will be receiving, mandatory
-  // /// @param sendingNFT_ token user need to send in order to receive *receivingToken_*
-
-  // function createEvent(uint256 eventId_, uint256 timestamp_, bytes32 merkleRoot_, address receiveNFT_, address sendingNFT_) public onlyAdmin {
-  //   require(_eventDatas[eventId_].timestamp == 0, "C98Vault: Event existed");
-  //   require(timestamp_ != 0, "C98Vault: Invalid timestamp");
-  //   _eventDatas[eventId_].timestamp = timestamp_;
-  //   _eventDatas[eventId_].merkleRoot = merkleRoot_;
-  //   _eventDatas[eventId_].receivingToken = receiveNFT_;
-  //   _eventDatas[eventId_].sendingToken = sendingNFT_;
-  //   _eventDatas[eventId_].isActive = 1;
-
-  //   emit EventCreated(eventId_, _eventDatas[eventId_]);
-  // }
-
-
 
   /// @dev enable/disable a particular event
   /// @param eventId_ event ID
