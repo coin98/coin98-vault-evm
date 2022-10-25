@@ -1,11 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "./lib/Common.sol";
-import "./lib/Token.sol";
-import "./lib/Module.sol";
-import "./lib/Merkle.sol";
-import "./lib/Upgradable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import "@openzeppelin/contracts/interfaces/IERC721.sol";
+import "@openzeppelin/contracts/interfaces/IERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/proxy/Clones.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+
+/**
+ * @dev Enable contract to receive gas token
+ */
+abstract contract Payable {
+
+  event Deposited(address indexed sender, uint256 value);
+
+  fallback() external payable {
+    if(msg.value > 0) {
+      emit Deposited(msg.sender, msg.value);
+    }
+  }
+
+  /// @dev enable wallet to receive ETH
+  receive() external payable {
+    if(msg.value > 0) {
+      emit Deposited(msg.sender, msg.value);
+    }
+  }
+}
+
 
 interface IVaultConfig {
 
@@ -21,7 +47,7 @@ interface ICoin98Vault {
 /**
  * @dev Coin98Vault contract to enable vesting funds to investors
  */
-contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
+contract Coin98VaultV3 is ICoin98Vault, ERC1155Holder,ERC721Holder,OwnableUpgradeable, Payable {
 
   using SafeERC20 for IERC20;
 
@@ -99,7 +125,7 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
     uint256 fee = IVaultConfig(_factory).fee();
     uint256 gasLimit = IVaultConfig(_factory).gasLimit();
     if(fee > 0) {
-      require(_msgValue() == fee, "C98Vault: Invalid fee");
+      require(msg.value == fee, "C98Vault: Invalid fee");
     }
 
     EventData storage eventData = _eventDatas[eventId_];
@@ -112,9 +138,7 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
     require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
     require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
 
-
     if(eventData.typeEvent == 1) {
-    // require(0==1,"Successfully");
       require(IERC721(eventData.receivingToken).ownerOf(receivingId_) == address(this), "C98Vault: Insufficient NFT");
     }
      else {
@@ -150,7 +174,7 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
     uint256 fee = IVaultConfig(_factory).fee();
     uint256 gasLimit = IVaultConfig(_factory).gasLimit();
     if(fee > 0) {
-      require(_msgValue() == fee, "C98Vault: Invalid fee");
+      require(msg.value == fee, "C98Vault: Invalid fee");
     }
 
     EventData storage eventData = _eventDatas[eventId_];
@@ -301,7 +325,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
   address private _implementation;
   address[] private _vaults;
 
-  constructor (address _vaultImplementation) Ownable(_msgSender()) {
+  constructor (address _vaultImplementation) Ownable() {
     _implementation = _vaultImplementation;
     _gasLimit = 9000;
   }
