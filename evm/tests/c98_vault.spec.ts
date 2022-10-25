@@ -152,7 +152,6 @@ describe("Coin98_Vault_test", function () {
 
   it("Valid requirement 1155 : ", async function () {
     const nft1155: ERC1155Token = await NFT1155.attach(NFT1155Address);
-    const erc20Token: ERC20Token = await ERC20Token.attach(ERC20TokenAddress);
     const coin98VaultFactory: Coin98VaultFactory = await Coin98VaultFactory.attach(coin98VaultFactoryAddress);
 
     const saltHex = await web3.utils.numberToHex(88);
