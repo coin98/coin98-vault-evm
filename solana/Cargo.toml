@@ -1,6 +1,0 @@
-[workspace]
-members = [
-    "programs/*"
-]
-[programs.localnet]
-vault = "6UrdK99AdvoFdM8WrteDfK9XS2ENSLEHFkXDSmMPryk"
