@@ -1,0 +1,33 @@
+{
+  "name": "@coin98/coin98-vault-evm",
+  "version": "0.1.0",
+  "description": "Utility for mass token distribution",
+  "author": "Coin98 Labs",
+  "license": "Apache-2.0",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "hardhat compile",
+    "clean": "hardhat clean",
+    "test": "hardhat test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coin98/coin98-vault-evm.git"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "~1.0.5",
+    "@nomicfoundation/hardhat-toolbox": "~1.0.2",
+    "@types/chai": "~4.3.4",
+    "@types/mocha": "~9.1.0",
+    "chai": "~4.3.7",
+    "dotenv": "~16.0.3",
+    "hardhat": "~2.12.6",
+    "hardhat-dependency-compiler": "~1.1.3",
+    "hardhat-deploy": "~0.11.25",
+    "hardhat-gas-reporter": "~1.0.9",
+    "mocha": "~9.1.0",
+    "ts-mocha": "~10.0.0",
+    "typescript": "~4.7.4"
+  }
+}

@@ -1,5 +1,8 @@
 # Coin98 EVM contract gitignore
 /.DS_Store
+/.env
+/.npmrc
+/.yarn
 /artifacts
 /cache
 /node_modules
