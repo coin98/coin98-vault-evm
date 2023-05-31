@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import "./lib/Common.sol";
-import "./lib/Token.sol";
 import "./lib/Module.sol";
 import "./lib/Merkle.sol";
+import "./lib/Token.sol";
 import "./lib/Upgradable.sol";
 
 interface IVaultConfig {
@@ -15,7 +15,7 @@ interface IVaultConfig {
 }
 
 interface ICoin98Vault {
-  function init() external virtual;
+  function init() external;
 }
 
 /**
@@ -23,7 +23,7 @@ interface ICoin98Vault {
  */
 contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
 
-  using SafeERC20 for IERC20;
+  using AdvancedERC20 for IERC20;
 
   address private _factory;
   address[] private _admins;
@@ -121,14 +121,15 @@ contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
     if(fee > 0) {
       uint256 reward = IVaultConfig(_factory).ownerReward();
       uint256 finalFee = fee - reward;
-      (bool success, bytes memory data) = _factory.call{value:finalFee, gas:gasLimit}("");
+      (bool success,) = _factory.call{value:finalFee, gas:gasLimit}("");
       require(success, "C98Vault: Unable to charge fee");
     }
     if(sendingAmount_ > 0) {
       IERC20(eventData.sendingToken).safeTransferFrom(_msgSender(), address(this), sendingAmount_);
     }
     if(eventData.receivingToken == address(0)) {
-      recipient_.call{value:receivingAmount_, gas:gasLimit}("");
+      (bool success,) = recipient_.call{value:receivingAmount_, gas:gasLimit}("");
+      require(success, "C98Vault: Send ETH failed");
     } else {
       IERC20(eventData.receivingToken).safeTransfer(recipient_, receivingAmount_);
     }
@@ -154,7 +155,8 @@ contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
 
     uint256 gasLimit = IVaultConfig(_factory).gasLimit();
     if(token_ == address(0)) {
-      destination_.call{value:amount_, gas:gasLimit}("");
+      (bool success,) = destination_.call{value:amount_, gas:gasLimit}("");
+      require(success, "C98Vault: Send ETH failed");
     } else {
       IERC20(token_).safeTransfer(destination_, amount_);
     }
@@ -237,7 +239,7 @@ contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
 
 contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
 
-  using SafeERC20 for IERC20;
+  using AdvancedERC20 for IERC20;
 
   uint256 private _fee;
   uint256 private _gasLimit;
@@ -294,7 +296,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
   /// @param owner_ Owner of newly created vault
   /// @param salt_ an arbitrary value
   function createVault(address owner_, bytes32 salt_) external returns (address vault) {
-    address vault = Clones.cloneDeterministic(_implementation, salt_);
+    vault = Clones.cloneDeterministic(_implementation, salt_);
 
     ICoin98Vault(vault).init();
     Ownable(vault).transferOwnership(owner_);
@@ -341,7 +343,8 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
     require(amount_ <= availableAmount, "C98Vault: Not enough balance");
 
     if(token_ == address(0)) {
-      destination_.call{value:amount_, gas:_gasLimit}("");
+      (bool success,) = destination_.call{value:amount_, gas:_gasLimit}("");
+      require(success, "C98Vault: Send ETH failed");
     } else {
       IERC20(token_).safeTransfer(destination_, amount_);
     }
