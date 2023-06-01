@@ -85,6 +85,7 @@ const config: HardhatUserConfig = {
   dependencyCompiler: {
     paths: [
       '@coin98/solidity-support-library/contracts/tokens/ERC20.sol',
+      '@coin98/solidity-support-library/contracts/tokens/LegacyERC20.sol',
     ],
   },
   gasReporter: {
