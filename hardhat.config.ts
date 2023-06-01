@@ -1,5 +1,6 @@
 import '@nomicfoundation/hardhat-toolbox';
 import dotenv from 'dotenv';
+import 'hardhat-dependency-compiler';
 import 'hardhat-deploy';
 import 'hardhat-gas-reporter';
 import { HardhatUserConfig } from 'hardhat/config';
@@ -80,6 +81,11 @@ const config: HardhatUserConfig = {
     deploy: './deploy',
     sources: './contracts',
     tests: './tests',
+  },
+  dependencyCompiler: {
+    paths: [
+      '@coin98/solidity-support-library/contracts/tokens/ERC20.sol',
+    ],
   },
   gasReporter: {
     currency: 'USD',

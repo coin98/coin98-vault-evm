@@ -16,7 +16,9 @@
     "url": "git+https://github.com/coin98/coin98-vault-evm.git"
   },
   "devDependencies": {
+    "@coin98/solidity-support-library": "~0.4.0",
     "@nomicfoundation/hardhat-chai-matchers": "~1.0.5",
+    "@nomicfoundation/hardhat-network-helpers": "~1.0.8",
     "@nomicfoundation/hardhat-toolbox": "~1.0.2",
     "@types/chai": "~4.3.4",
     "@types/mocha": "~9.1.0",
