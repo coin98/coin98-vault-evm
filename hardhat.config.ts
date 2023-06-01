@@ -91,7 +91,6 @@ const config: HardhatUserConfig = {
   gasReporter: {
     currency: 'USD',
     enabled: true,
-    gasPrice: 10,
     token: 'ETH',
   },
   mocha: {
