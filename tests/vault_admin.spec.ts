@@ -1,6 +1,7 @@
 import {
   Hasher,
   ZERO_ADDRESS,
+  ZERO_BYTES32,
 } from '@coin98/solidity-support-library';
 import { expect } from 'chai';
 import {
@@ -84,6 +85,13 @@ describe('vault administrative task tests', function() {
     await sut.connect(owner).createEvent(salt, whitelistRoot, token.address, ZERO_ADDRESS);
     await expect(sut.connect(owner).createEvent(salt, whitelistRoot, token.address, ZERO_ADDRESS))
       .to.be.revertedWith('C98Vault: Event existed');
+  });
+
+  it('zero merkle proof is invalid', async function() {
+    let currentTimestamp = new Date().getTime();
+    const salt = utils.solidityKeccak256(['uint256', 'uint256', 'uint256'], [currentTimestamp, Math.floor(Math.random() * 1000000000), 1003]);
+    await expect(sut.connect(owner).createEvent(salt, ZERO_BYTES32, token.address, ZERO_ADDRESS))
+      .to.be.rejectedWith('C98Vault: Invalid merkle');
   });
 
   it('cannot disable non-existant event', async function() {

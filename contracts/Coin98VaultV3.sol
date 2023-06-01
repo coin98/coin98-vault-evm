@@ -184,6 +184,7 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
   /// @param sendingToken_ token user need to send in order to receive *receivingToken_*
   function createEvent(uint256 eventId_, bytes32 merkleRoot_, address receivingToken_, address sendingToken_) public onlyAdmin {
     require(_eventDatas[eventId_].merkleRoot == 0x0000000000000000000000000000000000000000000000000000000000000000, "C98Vault: Event existed");
+    require(merkleRoot_ != 0x0000000000000000000000000000000000000000000000000000000000000000, "C98Vault: Invalid merkle");
     _eventDatas[eventId_].merkleRoot = merkleRoot_;
     _eventDatas[eventId_].receivingToken = receivingToken_;
     _eventDatas[eventId_].sendingToken = sendingToken_;
