@@ -19,9 +19,9 @@ interface ICoin98Vault {
 }
 
 /**
- * @dev Coin98VaultV3 contract to enable vesting funds to investors
+ * @dev Coin98VaultV2 contract to enable vesting funds to investors
  */
-contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
+contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
 
   using AdvancedERC20 for IERC20;
 
@@ -237,7 +237,7 @@ contract Coin98VaultV3 is ICoin98Vault, OwnableUpgradeable, Payable {
   }
 }
 
-contract Coin98VaultV3Factory is Ownable, Payable, IVaultConfig {
+contract Coin98VaultV2Factory is Ownable, Payable, IVaultConfig {
 
   using AdvancedERC20 for IERC20;
 
