@@ -10,8 +10,8 @@ import {
 } from 'ethers';
 import hhe from 'hardhat';
 import {
-  Coin98VaultV3,
-  Coin98VaultV3Factory,
+  Coin98Vault,
+  Coin98VaultFactory,
   ERC20,
 } from '../typechain-types';
 import {
@@ -29,8 +29,8 @@ describe('vault administrative task tests', function() {
   let account3: Signer;
   let account3Address: string;
   let token: ERC20;
-  let sut: Coin98VaultV3
-  let sutFactory: Coin98VaultV3Factory;
+  let sut: Coin98Vault
+  let sutFactory: Coin98VaultFactory;
 
   before(async function() {
     const signers = await hhe.ethers.getSigners();
@@ -46,17 +46,17 @@ describe('vault administrative task tests', function() {
     const tokenFactory = await hhe.ethers.getContractFactory('ERC20');
     token = await tokenFactory.connect(owner).deploy('Coin98', 'C98', 6);
     await token.deployed();
-    const vaultFactory = await hhe.ethers.getContractFactory('Coin98VaultV3');
+    const vaultFactory = await hhe.ethers.getContractFactory('Coin98Vault');
     const vault = await vaultFactory.connect(owner).deploy();
     await vault.deployed();
-    const vaultFactoryFactory = await hhe.ethers.getContractFactory('Coin98VaultV3Factory');
+    const vaultFactoryFactory = await hhe.ethers.getContractFactory('Coin98VaultFactory');
     sutFactory = await vaultFactoryFactory.connect(owner).deploy(vault.address);
     await sutFactory.deployed();
     const salt = '0x' + Hasher.keccak256('vault_admin').toString('hex');
     const deployTransaction = await sutFactory.connect(owner).createVault(ownerAddress, salt);
     await deployTransaction.wait();
     const sutAddress = await sutFactory.getVaultAddress(salt);
-    sut = await hhe.ethers.getContractAt('Coin98VaultV3', sutAddress);
+    sut = await hhe.ethers.getContractAt('Coin98Vault', sutAddress);
   });
 
   it('create event successful', async function() {
@@ -69,7 +69,7 @@ describe('vault administrative task tests', function() {
     ];
     const whitelistTree = createWhitelistTree(whitelists);
     const whitelistRoot = '0x' + whitelistTree.root().hash.toString('hex');
-    await sut.connect(owner).createEvent(salt, whitelistRoot, token.address, ZERO_ADDRESS);
+    await sut.connect(owner).createEvent(salt, currentTimestamp, whitelistRoot, token.address, ZERO_ADDRESS);
   });
 
   it('cannot overwrite existing event', async function() {
@@ -82,15 +82,15 @@ describe('vault administrative task tests', function() {
     ];
     const whitelistTree = createWhitelistTree(whitelists);
     const whitelistRoot = '0x' + whitelistTree.root().hash.toString('hex');
-    await sut.connect(owner).createEvent(salt, whitelistRoot, token.address, ZERO_ADDRESS);
-    await expect(sut.connect(owner).createEvent(salt, whitelistRoot, token.address, ZERO_ADDRESS))
+    await sut.connect(owner).createEvent(salt, currentTimestamp, whitelistRoot, token.address, ZERO_ADDRESS);
+    await expect(sut.connect(owner).createEvent(salt, currentTimestamp, whitelistRoot, token.address, ZERO_ADDRESS))
       .to.be.revertedWith('C98Vault: Event existed');
   });
 
   it('zero merkle proof is invalid', async function() {
     let currentTimestamp = new Date().getTime();
     const salt = utils.solidityKeccak256(['uint256', 'uint256', 'uint256'], [currentTimestamp, Math.floor(Math.random() * 1000000000), 1003]);
-    await expect(sut.connect(owner).createEvent(salt, ZERO_BYTES32, token.address, ZERO_ADDRESS))
+    await expect(sut.connect(owner).createEvent(salt, currentTimestamp, ZERO_BYTES32, token.address, ZERO_ADDRESS))
       .to.be.rejectedWith('C98Vault: Invalid merkle');
   });
 
