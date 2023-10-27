@@ -19,9 +19,9 @@ interface ICoin98Vault {
 }
 
 /**
- * @dev Coin98VaultV2 contract to enable vesting funds to investors
+ * @dev Coin98Vault contract to enable vesting funds to investors
  */
-contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
+contract Coin98Vault is ICoin98Vault, OwnableUpgradeable, Payable {
 
   using AdvancedERC20 for IERC20;
 
@@ -32,6 +32,7 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
   mapping(uint256 => mapping(uint256 => bool)) private _eventRedemptions;
 
   struct EventData {
+    uint256 timestamp;
     bytes32 merkleRoot;
     address receivingToken;
     address sendingToken;
@@ -42,7 +43,7 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
   event AdminRemoved(address indexed admin);
   event EventCreated(uint256 eventId, EventData eventData);
   event EventUpdated(uint256 eventId, uint8 isActive);
-  event Redeemed(uint256 eventId, uint256 index, uint256 timestamp, address indexed recipient, address indexed receivingToken, uint256 receivingTokenAmount, address indexed sendingToken, uint256 sendingTokenAmount);
+  event Redeemed(uint256 eventId, uint256 index, address indexed recipient, address indexed receivingToken, uint256 receivingTokenAmount, address indexed sendingToken, uint256 sendingTokenAmount);
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
 
   function _setRedemption(uint256 eventId_, uint256 index_) private {
@@ -87,12 +88,11 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
   /// @dev claim the token which user is eligible from schedule
   /// @param eventId_ event ID
   /// @param index_ index of redemption pre-assigned to user
-  /// @param timestamp_ time that token will be unlocked for redemption
   /// @param recipient_ index of redemption pre-assigned to user
   /// @param receivingAmount_ amount of *receivingToken* user is eligible to redeem
   /// @param sendingAmount_ amount of *sendingToken* user must send the contract to get *receivingToken*
   /// @param proofs additional data to validate that the inputted information is valid
-  function redeem(uint256 eventId_, uint256 index_, uint256 timestamp_, address recipient_, uint256 receivingAmount_, uint256 sendingAmount_, bytes32[] calldata proofs) public payable {
+  function redeem(uint256 eventId_, uint256 index_, address recipient_, uint256 receivingAmount_, uint256 sendingAmount_, bytes32[] calldata proofs) public payable {
     uint256 fee = IVaultConfig(_factory).fee();
     uint256 gasLimit = IVaultConfig(_factory).gasLimit();
     if(fee > 0) {
@@ -101,10 +101,10 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
 
     EventData storage eventData = _eventDatas[eventId_];
     require(eventData.isActive > 0, "C98Vault: Invalid event");
-    require(timestamp_ <= block.timestamp, "C98Vault: Schedule locked");
+    require(eventData.timestamp <= block.timestamp, "C98Vault: Schedule locked");
     require(recipient_ != address(0), "C98Vault: Invalid schedule");
 
-    bytes32 node = keccak256(abi.encodePacked(index_, timestamp_, recipient_, receivingAmount_, sendingAmount_));
+    bytes32 node = keccak256(abi.encodePacked(index_, recipient_, receivingAmount_, sendingAmount_));
     require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
     require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
 
@@ -136,7 +136,7 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
       IERC20(eventData.receivingToken).safeTransfer(recipient_, receivingAmount_);
     }
 
-    emit Redeemed(eventId_, index_, timestamp_, recipient_, eventData.receivingToken, receivingAmount_, eventData.sendingToken, sendingAmount_);
+    emit Redeemed(eventId_, index_, recipient_, eventData.receivingToken, receivingAmount_, eventData.sendingToken, sendingAmount_);
   }
 
   /// @dev withdraw the token in the vault, no limit
@@ -180,11 +180,13 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
 
   /// @dev create an event to specify how user can claim their token
   /// @param eventId_ event ID
+  /// @param timestamp_ when the token will be available for redemption
   /// @param receivingToken_ token user will be receiving, mandatory
   /// @param sendingToken_ token user need to send in order to receive *receivingToken_*
-  function createEvent(uint256 eventId_, bytes32 merkleRoot_, address receivingToken_, address sendingToken_) public onlyAdmin {
+  function createEvent(uint256 eventId_, uint256 timestamp_, bytes32 merkleRoot_, address receivingToken_, address sendingToken_) public onlyAdmin {
     require(_eventDatas[eventId_].merkleRoot == 0x0000000000000000000000000000000000000000000000000000000000000000, "C98Vault: Event existed");
     require(merkleRoot_ != 0x0000000000000000000000000000000000000000000000000000000000000000, "C98Vault: Invalid merkle");
+    _eventDatas[eventId_].timestamp = timestamp_;
     _eventDatas[eventId_].merkleRoot = merkleRoot_;
     _eventDatas[eventId_].receivingToken = receivingToken_;
     _eventDatas[eventId_].sendingToken = sendingToken_;
@@ -237,7 +239,7 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
   }
 }
 
-contract Coin98VaultV2Factory is Ownable, Payable, IVaultConfig {
+contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
 
   using AdvancedERC20 for IERC20;
 
