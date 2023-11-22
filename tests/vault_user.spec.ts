@@ -51,17 +51,17 @@ describe('vault administrative task tests', function() {
     const legacyTokenFactory = await hhe.ethers.getContractFactory('LegacyERC20');
     usdtToken = await legacyTokenFactory.connect(owner).deploy('Tether USD', 'USDT', 6);
     await usdtToken.deployed();
-    const vaultFactory = await hhe.ethers.getContractFactory('Coin98VaultV3');
+    const vaultFactory = await hhe.ethers.getContractFactory('Coin98VaultV2');
     const vault = await vaultFactory.connect(owner).deploy();
     await vault.deployed();
-    const vaultFactoryFactory = await hhe.ethers.getContractFactory('Coin98VaultV3Factory');
+    const vaultFactoryFactory = await hhe.ethers.getContractFactory('Coin98VaultV2Factory');
     sutFactory = await vaultFactoryFactory.connect(owner).deploy(vault.address);
     await sutFactory.deployed();
     const salt = '0x' + Hasher.keccak256('vault_user').toString('hex');
     const deployTransaction = await sutFactory.connect(owner).createVault(ownerAddress, salt);
     await deployTransaction.wait();
     const sutAddress = await sutFactory.getVaultAddress(salt);
-    sut = await hhe.ethers.getContractAt('Coin98VaultV3', sutAddress);
+    sut = await hhe.ethers.getContractAt('Coin98VaultV2', sutAddress);
   });
 
   it('redeem token successful', async function() {

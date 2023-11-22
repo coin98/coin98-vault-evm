@@ -46,17 +46,17 @@ describe('vault administrative task tests', function() {
     const tokenFactory = await hhe.ethers.getContractFactory('ERC20');
     token = await tokenFactory.connect(owner).deploy('Coin98', 'C98', 6);
     await token.deployed();
-    const vaultFactory = await hhe.ethers.getContractFactory('Coin98VaultV3');
+    const vaultFactory = await hhe.ethers.getContractFactory('Coin98VaultV2');
     const vault = await vaultFactory.connect(owner).deploy();
     await vault.deployed();
-    const vaultFactoryFactory = await hhe.ethers.getContractFactory('Coin98VaultV3Factory');
+    const vaultFactoryFactory = await hhe.ethers.getContractFactory('Coin98VaultV2Factory');
     sutFactory = await vaultFactoryFactory.connect(owner).deploy(vault.address);
     await sutFactory.deployed();
     const salt = '0x' + Hasher.keccak256('vault_admin').toString('hex');
     const deployTransaction = await sutFactory.connect(owner).createVault(ownerAddress, salt);
     await deployTransaction.wait();
     const sutAddress = await sutFactory.getVaultAddress(salt);
-    sut = await hhe.ethers.getContractAt('Coin98VaultV3', sutAddress);
+    sut = await hhe.ethers.getContractAt('Coin98VaultV2', sutAddress);
   });
 
   it('create event successful', async function() {

@@ -2,10 +2,11 @@
 pragma solidity ^0.8.0;
 
 import "./lib/Common.sol";
-import "./lib/Module.sol";
 import "./lib/Merkle.sol";
+import "./lib/Module.sol";
 import "./lib/Token.sol";
 import "./lib/Upgradable.sol";
+import "./lib/VRC25.sol";
 
 interface IVaultConfig {
 
@@ -15,13 +16,13 @@ interface IVaultConfig {
 }
 
 interface ICoin98Vault {
-  function init() external;
+  function init(address owner) external;
 }
 
 /**
  * @dev Coin98VaultV2 contract to enable vesting funds to investors
  */
-contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
+contract Coin98VaultV2 is VRC25, Context, Payable, ICoin98Vault {
 
   using AdvancedERC20 for IERC20;
 
@@ -36,6 +37,9 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
     address receivingToken;
     address sendingToken;
     uint8 isActive;
+  }
+
+  constructor() VRC25("Coin98 Vault", "C98V", 18) {
   }
 
   event AdminAdded(address indexed admin);
@@ -79,9 +83,9 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
   }
 
   /// @dev Initial vault
-  function init() external override initializer {
-    __Ownable_init();
+  function init(address owner) external override initializer {
     _factory = msg.sender;
+    _setOwner(owner);
   }
 
   /// @dev claim the token which user is eligible from schedule
@@ -235,9 +239,105 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
       }
     }
   }
+
+  /// UPGRADABLE
+  /**
+  * @dev Indicates that the contract has been initialized.
+  * @custom:oz-retyped-from bool
+  */
+  uint8 private _initialized;
+
+  /**
+  * @dev Indicates that the contract is in the process of being initialized.
+  */
+  bool private _initializing;
+
+  /**
+  * @dev A modifier that defines a protected initializer function that can be invoked at most once. In its scope,
+  * `onlyInitializing` functions can be used to initialize parent contracts. Equivalent to `reinitializer(1)`.
+  */
+  modifier initializer() {
+    bool isTopLevelCall = _setInitializedVersion(1);
+    if (isTopLevelCall) {
+      _initializing = true;
+    }
+    _;
+    if (isTopLevelCall) {
+      _initializing = false;
+    }
+  }
+
+  /**
+  * @dev A modifier that defines a protected reinitializer function that can be invoked at most once, and only if the
+  * contract hasn't been initialized to a greater version before. In its scope, `onlyInitializing` functions can be
+  * used to initialize parent contracts.
+  *
+  * `initializer` is equivalent to `reinitializer(1)`, so a reinitializer may be used after the original
+  * initialization step. This is essential to configure modules that are added through upgrades and that require
+  * initialization.
+  *
+  * Note that versions can jump in increments greater than 1; this implies that if multiple reinitializers coexist in
+  * a contract, executing them in the right order is up to the developer or operator.
+  */
+  modifier reinitializer(uint8 version) {
+    bool isTopLevelCall = _setInitializedVersion(version);
+    if (isTopLevelCall) {
+      _initializing = true;
+    }
+    _;
+    if (isTopLevelCall) {
+      _initializing = false;
+    }
+  }
+
+  /**
+  * @dev Modifier to protect an initialization function so that it can only be invoked by functions with the
+  * {initializer} and {reinitializer} modifiers, directly or indirectly.
+  */
+  modifier onlyInitializing() {
+    require(_initializing, "Initializable: contract is not initializing");
+    _;
+  }
+
+  /**
+  * @dev Locks the contract, preventing any future reinitialization. This cannot be part of an initializer call.
+  * Calling this in the constructor of a contract will prevent that contract from being initialized or reinitialized
+  * to any version. It is recommended to use this to lock implementation contracts that are designed to be called
+  * through proxies.
+  */
+  function _disableInitializers() internal virtual {
+    _setInitializedVersion(type(uint8).max);
+  }
+
+  function _setInitializedVersion(uint8 version) private returns (bool) {
+    // If the contract is initializing we ignore whether _initialized is set in order to support multiple
+    // inheritance patterns, but we only do this in the context of a constructor, and for the lowest level
+    // of initializers, because in other contexts the contract may have been reentered.
+    if (_initializing) {
+      require(
+        version == 1 && !Address.isContract(address(this)),
+        "Initializable: contract is already initialized"
+      );
+      return false;
+    } else {
+      require(_initialized < version, "Initializable: contract is already initialized");
+      _initialized = version;
+      return true;
+    }
+  }
+
+  // VRC25
+
+  /**
+   * @notice Calculate fee required for action related to this token
+   * @param value Amount of fee
+   */
+  function _estimateFee(uint256 value) internal view override returns (uint256) {
+    return 0;
+  }
 }
 
-contract Coin98VaultV2Factory is Ownable, Payable, IVaultConfig {
+contract Coin98VaultV2Factory is VRC25, Context, Payable, IVaultConfig {
 
   using AdvancedERC20 for IERC20;
 
@@ -247,7 +347,7 @@ contract Coin98VaultV2Factory is Ownable, Payable, IVaultConfig {
   address private _implementation;
   address[] private _vaults;
 
-  constructor (address _vaultImplementation) Ownable(_msgSender()) {
+  constructor (address _vaultImplementation) VRC25("Coin98 Vault", "C98V", 18) {
     _implementation = _vaultImplementation;
     _gasLimit = 9000;
   }
@@ -298,8 +398,7 @@ contract Coin98VaultV2Factory is Ownable, Payable, IVaultConfig {
   function createVault(address owner_, bytes32 salt_) external returns (address vault) {
     vault = Clones.cloneDeterministic(_implementation, salt_);
 
-    ICoin98Vault(vault).init();
-    Ownable(vault).transferOwnership(owner_);
+    ICoin98Vault(vault).init(owner_);
 
     _vaults.push(address(vault));
     emit Created(address(vault));
@@ -362,5 +461,15 @@ contract Coin98VaultV2Factory is Ownable, Payable, IVaultConfig {
     IERC721(token_).transferFrom(address(this), destination_, tokenId_);
 
     emit Withdrawn(_msgSender(), destination_, token_, 1);
+  }
+
+  // VRC25
+
+  /**
+   * @notice Calculate fee required for action related to this token
+   * @param value Amount of fee
+   */
+  function _estimateFee(uint256 value) internal view override returns (uint256) {
+    return 0;
   }
 }
