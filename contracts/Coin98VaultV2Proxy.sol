@@ -7,24 +7,15 @@ import "./lib/Token.sol";
 contract Coin98V2VaultProxy is VRC25 {
     using AdvancedERC20 for IERC20;
 
-    mapping(uint256 => EventData) private _eventDatas;
-
-    struct EventData {
-    bytes32 merkleRoot;
-    address receivingToken;
-    address sendingToken;
-    uint8 isActive;
-  }
-
     constructor() VRC25("Coin98 Vault Proxy", "C98VP", 18) {
     }
     function redeem(address payable vaultAddress, uint256 eventId_, uint256 index_, uint256 timestamp_, address recipient_, uint256 receivingAmount_, uint256 sendingAmount_, bytes32[] calldata proofs) public payable {
-        EventData memory eventData = _eventDatas[eventId_];
+        Coin98VaultV2.EventData memory eventData = Coin98VaultV2(vaultAddress).eventInfo(eventId_);
 
         if (sendingAmount_ > 0) {
+            require(eventData.sendingToken != address(0), "Coin98V2VaultProxy: Invalid sending token address");
             IERC20(eventData.sendingToken).safeTransferFrom(msg.sender, address(this), sendingAmount_);
             IERC20(eventData.sendingToken).safeApprove(vaultAddress, sendingAmount_);
-            IERC20(eventData.sendingToken).safeTransfer(vaultAddress, sendingAmount_);
         }
         Coin98VaultV2(vaultAddress).redeem{value: msg.value}(eventId_, index_, timestamp_, recipient_, receivingAmount_, sendingAmount_, proofs);
     }
