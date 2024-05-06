@@ -20,6 +20,7 @@
     "@nomicfoundation/hardhat-chai-matchers": "~1.0.5",
     "@nomicfoundation/hardhat-network-helpers": "~1.0.8",
     "@nomicfoundation/hardhat-toolbox": "~1.0.2",
+    "@openzeppelin/contracts": "^4.9.6",
     "@types/chai": "~4.3.4",
     "@types/mocha": "~9.1.0",
     "chai": "~4.3.7",
