@@ -40,8 +40,8 @@ describe("Coin98VaultNftFactory", function () {
             await time.increaseTo((await time.latest()) + 101);
             const tx2 = await vault.connect(accs[0]).claim(1, 0);
 
-            expect(tx2).to.emit(vault, "Claimed").withArgs(accs[0].address, 1, 1000);
-            expect(tx2).to.changeTokenBalances(c98, [accs[0], vault], [1000, -1000]);
+            await expect(tx2).to.emit(vault, "Claimed").withArgs(1, 0, 100);
+            await expect(tx2).to.changeTokenBalances(c98, [accs[0], vault], [100, -100]);
 
             await expect(vault.connect(accs[0]).claim(1, 0)).to.be.revertedWith("Coin98Vault: Already claimed");
             await expect(vault.connect(accs[0]).claim(1, 1)).to.be.revertedWith("Coin98Vault: Schedule not available");
@@ -69,6 +69,25 @@ describe("Coin98VaultNftFactory", function () {
             await vault.connect(accs[0]).mint(proofs, accs[0].address, 1, 1000);
 
             await expect(vault.connect(accs[0]).claim(1, 0)).to.be.revertedWith("Coin98Vault: Schedule not available");
+        });
+
+        it("Claim multiple times", async () => {
+            let whitelistProof = tree.proofs(0);
+            const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+            await vault.connect(accs[0]).mint(proofs, accs[0].address, 1, 1000);
+
+            await time.increaseTo((await time.latest()) + 101);
+            await vault.connect(accs[0]).claim(1, 0);
+
+            await time.increaseTo((await time.latest()) + 201);
+            const tx = await vault.connect(accs[0]).claim(1, 1);
+
+            await expect(tx).to.emit(vault, "Claimed").withArgs(1, 1, 200);
+
+            await time.increaseTo((await time.latest()) + 301);
+            const tx2 = await vault.connect(accs[0]).claim(1, 2);
+            await expect(tx2).to.emit(vault, "Claimed").withArgs(1, 2, 300);
         });
     });
 });
