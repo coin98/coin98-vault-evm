@@ -4,8 +4,8 @@ import { BigNumberish } from "ethers";
 
 export interface WhitelistNftData {
     to: string;
-    tokenId: number;
-    totalAlloc: number;
+    tokenId: BigNumberish;
+    totalAlloc: BigNumberish;
 }
 
 export function createWhitelistNftTree(whitelists: WhitelistNftData[]): MerkleTreeKeccak {

@@ -28,7 +28,6 @@ describe("Coin98VaultNftFactory", function () {
 
     describe("Vault", async () => {
         it("Mint NFT & claim vault", async () => {
-            let nodes = tree.nodes();
             let whitelistProof = tree.proofs(0);
             const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
 
@@ -46,6 +45,30 @@ describe("Coin98VaultNftFactory", function () {
 
             await expect(vault.connect(accs[0]).claim(1, 0)).to.be.revertedWith("Coin98Vault: Already claimed");
             await expect(vault.connect(accs[0]).claim(1, 1)).to.be.revertedWith("Coin98Vault: Schedule not available");
+        });
+
+        it("Mint again", async () => {
+            let nodes = tree.nodes();
+            let whitelistProof = tree.proofs(0);
+            const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+            await vault.connect(accs[0]).mint(proofs, accs[0].address, 1, 1000);
+
+            await time.increaseTo((await time.latest()) + 101);
+            await vault.connect(accs[0]).claim(1, 0);
+
+            await expect(vault.connect(accs[0]).mint(proofs, accs[0].address, 1, 1000)).to.be.revertedWith(
+                "ERC721: token already minted"
+            );
+        });
+
+        it("Schedule not available", async () => {
+            let whitelistProof = tree.proofs(0);
+            const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+            await vault.connect(accs[0]).mint(proofs, accs[0].address, 1, 1000);
+
+            await expect(vault.connect(accs[0]).claim(1, 0)).to.be.revertedWith("Coin98Vault: Schedule not available");
         });
     });
 });

@@ -90,7 +90,7 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable {
 
         uint256 amount = (allocs[tokenId].totalAlloc * schedules[scheduleIndex].percent) / 100;
 
-        IERC20(token).safeTransfer(msg.sender, amount);
+        _transferOrUnwrapTo(IERC20(token), msg.sender, amount);
 
         allocs[tokenId].claimedAlloc += amount;
 
@@ -129,12 +129,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable {
         require(amount_ <= availableAmount, "C98Vault: Not enough balance");
 
         uint256 gasLimit = IVaultConfig(_factory).gasLimit();
-        if (token_ == address(0)) {
-            (bool success, ) = destination_.call{ value: amount_, gas: gasLimit }("");
-            require(success, "C98Vault: Send ETH failed");
-        } else {
-            IERC20(token_).safeTransfer(destination_, amount_);
-        }
+
+        _transferOrUnwrapTo(IERC20(token_), destination_, amount_);
 
         emit Withdrawn(_msgSender(), destination_, token_, amount_);
     }
