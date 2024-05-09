@@ -25,7 +25,7 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
      * @dev Modifier to allow only minters to execute a function.
      */
     modifier onlyMinter() {
-        require(_minters[msg.sender], "Only from minter");
+        require(_minters[msg.sender], "Collection: Only from minter");
         _;
     }
 
@@ -100,7 +100,7 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
     function ownerOf(uint256 tokenId) public view virtual override(ICollection, IERC721, VRC725) returns (address) {
         address owner = _ownerOf(tokenId);
 
-        require(owner != address(0), "VRC725: invalid token ID");
+        require(owner != address(0), "Collection: Invalid token ID");
         return owner;
     }
 }

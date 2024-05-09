@@ -27,7 +27,7 @@ describe("Coin98VaultNftFactory", function () {
             let whitelistData: WhitelistNftData[];
             let tree: any;
 
-            it("should create vault", async () => {
+            it("Should create vault", async () => {
                 const salt = "0x" + Hasher.keccak256("vault").toString("hex");
                 whitelistData = [
                     <WhitelistNftData>{ to: accs[0].address, tokenId: 1, totalAlloc: parseEther("1000") },

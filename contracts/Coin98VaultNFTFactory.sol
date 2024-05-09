@@ -52,16 +52,18 @@ contract Coin98VaultNftFactory is Ownable, Payable, IVaultConfig {
         ICoin98VaultNft.InitParams memory params,
         bytes32 salt
     ) external returns (address vault) {
-        address collection = createCollection(name, symbol, owner, salt);
-
         require(
             params.merkleRoot != 0x0000000000000000000000000000000000000000000000000000000000000000,
             "C98Vault: Invalid merkle"
         );
-        vault = Clones.cloneDeterministic(_vaultImplementation, salt);
+        address collection = createCollection(name, symbol, address(this), salt);
 
+        vault = Clones.cloneDeterministic(_vaultImplementation, salt);
         ICoin98VaultNft(vault).__Coin98VaultNft_init(params, collection);
         Ownable(vault).transferOwnership(owner);
+
+        Collection(collection).setMinter(vault, true);
+        Ownable(collection).transferOwnership(owner);
 
         _vaults.push(address(vault));
 
@@ -71,16 +73,16 @@ contract Coin98VaultNftFactory is Ownable, Payable, IVaultConfig {
     function createCollection(
         string memory name,
         string memory symbol,
-        address owner_,
-        bytes32 salt_
-    ) public returns (address nft) {
-        nft = Clones.cloneDeterministic(_collectionImplementation, salt_);
+        address owner,
+        bytes32 salt
+    ) public returns (address collection) {
+        collection = Clones.cloneDeterministic(_collectionImplementation, salt);
 
-        Collection(nft).__Collection_init(name, symbol, owner_);
+        Collection(collection).__Collection_init(name, symbol, owner);
 
-        _nfts.push(address(nft));
+        _nfts.push(address(collection));
 
-        emit CreatedNft(address(nft));
+        emit CreatedNft(address(collection));
     }
 
     /// @dev withdraw fee collected for protocol

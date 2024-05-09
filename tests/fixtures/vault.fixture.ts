@@ -78,7 +78,5 @@ export async function vaultFixture(): Promise<VaultFixture> {
     await c98.connect(owner).approve(vault.address, 10000);
     await c98.connect(owner).transfer(vault.address, 10000);
 
-    await collection.connect(owner).setMinter(vault.address, true);
-
     return { owner, acc1, acc2, admin, accs, vault, collection, c98, whitelistData, tree };
 }
