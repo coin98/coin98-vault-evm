@@ -3,8 +3,7 @@ pragma solidity ^0.8.0;
 
 // Interfaces
 import "./interfaces/ICoin98VaultNft.sol";
-import "./interfaces/IVaultNft.sol";
-import "./interfaces/IWETH.sol";
+import "./interfaces/ICollection.sol";
 import "./interfaces/IVaultConfig.sol";
 import "./interfaces/IVRC725.sol";
 
@@ -15,50 +14,45 @@ import "./libraries/OwnableUpgradeable.sol";
 import "./libraries/BitMaps.sol";
 import "./libraries/Initializable.sol";
 import "./libraries/Merkle.sol";
+import "./libraries/ReentrancyGuard.sol";
 
-contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable {
+contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, ReentrancyGuard {
     using AdvancedERC20 for IERC20;
 
     address private _factory;
-    address[] private _admins;
-    mapping(address => bool) private _adminStatuses;
+
+    mapping(address => bool) private _isAdmins;
 
     // TokenID -> claimedSchedules
-    mapping(uint256 => BitMaps.BitMap) private claimedSchedules; // Store claimed schedules.
+    mapping(uint256 => BitMaps.BitMap) private _claimedSchedules; // Store claimed schedules.
 
     // TokenID -> Allocation
-    mapping(uint256 => Allocation) public allocs;
+    mapping(uint256 => Allocation) private _allocs;
 
     // Index -> Schedule
-    Schedule[] public schedules;
+    Schedule[] private _schedules;
 
     // Merkle root
-    bytes32 public merkleRoot;
+    bytes32 private merkleRoot;
 
-    address public token;
-    address public vaultNft;
-    address public WETH_ADDRESS;
-
-    struct Allocation {
-        uint256 claimedAlloc;
-        uint256 totalAlloc;
-    }
+    address private _token;
+    address private _collection;
 
     event Minted(address indexed to, uint256 indexed tokenId, uint256 totalAlloc);
-    event Claimed(uint256 indexed tokenId, uint256 indexed scheduleIndex, uint256 amount);
+    event Claimed(address indexed receiver, uint256 indexed tokenId, uint256 scheduleIndex, uint256 amount);
     event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
+    event AdminsUpdated(address[] admins, bool[] isActives);
 
     /// @dev Initial vault
-    function __Coin98VaultNft_init(InitParams memory params) external initializer {
+    function __Coin98VaultNft_init(InitParams memory params, address collection) external initializer {
         __Ownable_init();
 
-        token = params.token;
-        vaultNft = params.nft;
+        _token = params.token;
+        _collection = collection;
         merkleRoot = params.merkleRoot;
-        WETH_ADDRESS = params.weth;
 
         for (uint256 i = 0; i < params.schedules.length; i++) {
-            schedules.push(params.schedules[i]);
+            _schedules.push(params.schedules[i]);
         }
 
         _factory = msg.sender;
@@ -66,97 +60,113 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable {
 
     /// @dev Access Control, only owner and admins are able to access the specified function
     modifier onlyAdmin() {
-        require(owner() == _msgSender() || _adminStatuses[_msgSender()], "Ownable: caller is not an admin");
+        require(owner() == _msgSender() || _isAdmins[msg.sender], "Ownable: caller is not an admin");
         _;
     }
 
-    function mint(bytes32[] calldata proofs, address to, uint256 tokenId, uint256 _totalAlloc) external {
-        bytes32 leaf = keccak256(abi.encodePacked(to, tokenId, _totalAlloc));
-        require(MerkleProof.verify(proofs, merkleRoot, leaf), "Coin98Vault: Invalid proof");
+    function mint(address to, uint256 tokenId, uint256 totalAlloc, bytes32[] calldata proofs) external {
+        bytes32 leaf = keccak256(abi.encodePacked(to, tokenId, totalAlloc));
+        require(MerkleProof.verify(proofs, merkleRoot, leaf), "Coin98VaultNft: Invalid proof");
 
-        IVaultNft(vaultNft).mint(to, tokenId);
+        ICollection(_collection).mint(to, tokenId, totalAlloc, 0);
 
-        allocs[tokenId].totalAlloc = _totalAlloc;
+        _allocs[tokenId].totalAlloc = totalAlloc;
 
-        emit Minted(to, tokenId, _totalAlloc);
+        emit Minted(to, tokenId, totalAlloc);
     }
 
-    function claim(uint256 tokenId, uint256 scheduleIndex) external {
-        require(IVaultNft(vaultNft).ownerOf(tokenId) == msg.sender, "Coin98Vault: Not owner of token");
-        require(schedules[scheduleIndex].timestamp <= block.timestamp, "Coin98Vault: Schedule not available");
-        require(!BitMaps.get(claimedSchedules[tokenId], scheduleIndex), "Coin98Vault: Already claimed");
+    function claim(address receiver, uint256 tokenId, uint256 scheduleIndex) external nonReentrant {
+        uint256 fee = IVaultConfig(_factory).fee();
+        uint256 gasLimit = IVaultConfig(_factory).gasLimit();
 
-        BitMaps.setTo(claimedSchedules[tokenId], scheduleIndex, true);
+        require(ICollection(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Not owner of token");
+        require(_schedules[scheduleIndex].timestamp <= block.timestamp, "Coin98VaultNft: Schedule not available");
+        require(!BitMaps.get(_claimedSchedules[tokenId], scheduleIndex), "Coin98VaultNft: Already claimed");
 
-        uint256 amount = (allocs[tokenId].totalAlloc * schedules[scheduleIndex].percent) / 100;
+        BitMaps.setTo(_claimedSchedules[tokenId], scheduleIndex, true);
 
-        _transferOrUnwrapTo(IERC20(token), msg.sender, amount);
+        uint256 amount = (_allocs[tokenId].totalAlloc * _schedules[scheduleIndex].percent) / 100;
 
-        allocs[tokenId].claimedAlloc += amount;
-
-        emit Claimed(tokenId, scheduleIndex, amount);
-    }
-
-    /**
-     * @notice Transfer or unwrap the native token
-     * @param token_ Address of the native token
-     * @param recipient Address of the recipient
-     * @param amount Amount to transfer
-     */
-    function _transferOrUnwrapTo(IERC20 token_, address recipient, uint256 amount) internal {
-        if (address(token) == WETH_ADDRESS) {
-            IWETH(WETH_ADDRESS).withdraw(amount);
-            payable(recipient).transfer(amount);
-        } else {
-            token_.transfer(recipient, amount);
+        if (fee > 0) {
+            uint256 reward = IVaultConfig(_factory).ownerReward();
+            uint256 finalFee = fee - reward;
+            (bool success, ) = _factory.call{ value: finalFee, gas: gasLimit }("");
+            require(success, "Coin98VaultNft: Unable to charge fee");
         }
+
+        if (_token == address(0)) {
+            (bool success, ) = receiver.call{ value: amount, gas: gasLimit }("");
+            require(success, "Coin98VaultNft: Send ETH failed");
+        } else {
+            IERC20(_token).safeTransfer(receiver, amount);
+        }
+
+        _allocs[tokenId].claimedAlloc += amount;
+
+        ICollection(_collection).claim(tokenId, _allocs[tokenId].claimedAlloc);
+
+        emit Claimed(receiver, tokenId, scheduleIndex, amount);
     }
 
     /// @dev withdraw the token in the vault, no limit
-    /// @param token_ address of the token, use address(0) to withdraw gas token
-    /// @param destination_ recipient address to receive the fund
-    /// @param amount_ amount of fund to withdaw
-    function withdraw(address token_, address destination_, uint256 amount_) public onlyAdmin {
-        require(destination_ != address(0), "C98Vault: Destination is zero address");
+    /// @param token address of the token, use address(0) to withdraw gas token
+    /// @param destination recipient address to receive the fund
+    /// @param amount amount of fund to withdaw
+    function withdraw(address token, address destination, uint256 amount) public onlyOwner {
+        require(destination != address(0), "Coin98VaultNft: Destination is zero address");
 
         uint256 availableAmount;
-        if (token_ == address(0)) {
+        if (token == address(0)) {
             availableAmount = address(this).balance;
         } else {
-            availableAmount = IERC20(token_).balanceOf(address(this));
+            availableAmount = IERC20(token).balanceOf(address(this));
         }
 
-        require(amount_ <= availableAmount, "C98Vault: Not enough balance");
+        require(amount <= availableAmount, "Coin98VaultNft: Not enough balance");
 
         uint256 gasLimit = IVaultConfig(_factory).gasLimit();
 
-        _transferOrUnwrapTo(IERC20(token_), destination_, amount_);
+        if (token == address(0)) {
+            (bool success, ) = destination.call{ value: amount, gas: gasLimit }("");
+            require(success, "Coin98VaultNft: Send ETH failed");
+        } else {
+            IERC20(token).safeTransfer(destination, amount);
+        }
 
-        emit Withdrawn(_msgSender(), destination_, token_, amount_);
+        emit Withdrawn(_msgSender(), destination, token, amount);
     }
 
     /// @dev withdraw NFT from contract
-    /// @param token_ address of the token, use address(0) to withdraw gas token
-    /// @param destination_ recipient address to receive the fund
-    /// @param tokenId_ ID of NFT to withdraw
-    function withdrawNft(address token_, address destination_, uint256 tokenId_) public onlyAdmin {
-        require(destination_ != address(0), "C98Vault: destination is zero address");
+    /// @param token address of the token, use address(0) to withdraw gas token
+    /// @param destination recipient address to receive the fund
+    /// @param tokenId ID of NFT to withdraw
+    function withdrawNft(address token, address destination, uint256 tokenId) public onlyOwner {
+        require(destination != address(0), "Coin98VaultNft: destination is zero address");
 
-        IVRC725(token_).transferFrom(address(this), destination_, tokenId_);
+        IVRC725(token).transferFrom(address(this), destination, tokenId);
 
-        emit Withdrawn(_msgSender(), destination_, token_, 1);
+        emit Withdrawn(_msgSender(), destination, token, 1);
     }
 
     // SETTERS
-    function setNft(address _vaultNft) external onlyAdmin {
-        vaultNft = _vaultNft;
+    function setCollection(address collection) external onlyAdmin {
+        _collection = collection;
+    }
+
+    function setAdmins(address[] memory admins, bool[] memory isActives) external virtual onlyOwner {
+        require(admins.length == isActives.length, "AdminRole: Invalid input");
+        for (uint256 i = 0; i < admins.length; i++) {
+            _isAdmins[admins[i]] = isActives[i];
+        }
+
+        emit AdminsUpdated(admins, isActives);
     }
 
     // GETTERS
 
     /// @dev returns current admins who can manage the vault
-    function admins() public view returns (address[] memory) {
-        return _admins;
+    function isAdmin(address admin) public view returns (bool) {
+        return _isAdmins[admin];
     }
 
     /// @dev address of the factory
@@ -165,6 +175,21 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable {
     }
 
     function getSchedules() public view returns (Schedule[] memory) {
-        return schedules;
+        return _schedules;
+    }
+
+    function getCollectionAddress() public view returns (address) {
+        return _collection;
+    }
+
+    /// @dev Get total allocation of a token id
+    /// @param tokenId ID of the token
+    /// @return Allocation of the token
+    function getAlloc(uint256 tokenId) public view returns (Allocation memory) {
+        return _allocs[tokenId];
+    }
+
+    function getTokenAddress() public view returns (address) {
+        return _token;
     }
 }

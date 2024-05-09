@@ -7,13 +7,16 @@ interface ICoin98VaultNft {
         uint256 percent;
     }
 
+    struct Allocation {
+        uint256 claimedAlloc;
+        uint256 totalAlloc;
+    }
+
     struct InitParams {
         address token;
-        address nft;
-        address weth;
         bytes32 merkleRoot;
         Schedule[] schedules;
     }
 
-    function __Coin98VaultNft_init(InitParams memory params) external;
+    function __Coin98VaultNft_init(InitParams memory params, address collection) external;
 }
