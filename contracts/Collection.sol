@@ -11,8 +11,6 @@ import "./libraries/Payable.sol";
 import "./libraries/OwnableUpgradeable.sol";
 import "./libraries/ReentrancyGuard.sol";
 
-import "hardhat/console.sol";
-
 contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyGuard {
     mapping(address => bool) private _minters; // Mapping to store minter addresses
 
@@ -32,7 +30,6 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
     }
 
     function __Collection_init(string memory name, string memory symbol, address owner) external initializer {
-        console.log("Collection init");
         __VRC725_init(name, symbol, owner);
     }
 
