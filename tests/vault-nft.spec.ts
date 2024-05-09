@@ -102,7 +102,7 @@ describe("Coin98VaultNftFactory", function () {
 
             await vault.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
 
-            expect(await collection.getTotalAlloc(1)).to.equal(1000);
+            expect(await vault.getTotalAlloc(1)).to.equal(1000);
         });
 
         it("Get claimed", async () => {
@@ -114,7 +114,7 @@ describe("Coin98VaultNftFactory", function () {
             await time.increaseTo((await time.latest()) + 101);
             await vault.connect(accs[0]).claim(accs[0].address, 1, 0);
 
-            expect(await collection.getClaimedAlloc(1)).to.equal(100);
+            expect(await vault.getClaimedAlloc(1)).to.equal(100);
         });
 
         it("Get total supply", async () => {

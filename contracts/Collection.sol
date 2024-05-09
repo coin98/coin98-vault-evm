@@ -14,9 +14,6 @@ import "./libraries/ReentrancyGuard.sol";
 contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyGuard {
     mapping(address => bool) private _minters; // Mapping to store minter addresses
 
-    mapping(uint256 => uint256) private _totalAlloc;
-    mapping(uint256 => uint256) private _claimedAlloc;
-
     event SetMinter(address minter, bool isActive);
     event Minted(address indexed to, uint256 indexed tokenId);
     event Burned(uint256 indexed tokenId);
@@ -31,12 +28,10 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
 
     function __Collection_init(string memory name, string memory symbol, address owner) external initializer {
         __VRC725_init(name, symbol, owner);
+        _minters[msg.sender] = true;
     }
 
-    function mint(address to, uint256 tokenId, uint256 totalAlloc, uint256 claimedAlloc) external onlyMinter {
-        _totalAlloc[tokenId] = totalAlloc;
-        _claimedAlloc[tokenId] = claimedAlloc;
-
+    function mint(address to, uint256 tokenId) external onlyMinter {
         _safeMint(to, tokenId);
 
         emit Minted(to, tokenId);
@@ -50,10 +45,6 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
         _burn(tokenId);
 
         emit Burned(tokenId);
-    }
-
-    function claim(uint256 tokenId, uint256 claimedAmount) external nonReentrant {
-        _claimedAlloc[tokenId] = claimedAmount;
     }
 
     // SETTERS
@@ -77,30 +68,5 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
      */
     function isMinter(address minter) external view returns (bool) {
         return _minters[minter];
-    }
-
-    /**
-     * @dev Get total allocation of a token id
-     * @param tokenId ID of the token
-     * @return Allocation of the token
-     */
-    function getTotalAlloc(uint256 tokenId) public view returns (uint256) {
-        return _totalAlloc[tokenId];
-    }
-
-    /**
-     * @dev Get claimed allocation of a token id
-     * @param tokenId ID of the token
-     * @return Allocation of the token
-     */
-    function getClaimedAlloc(uint256 tokenId) public view returns (uint256) {
-        return _claimedAlloc[tokenId];
-    }
-
-    function ownerOf(uint256 tokenId) public view virtual override(ICollection, IERC721, VRC725) returns (address) {
-        address owner = _ownerOf(tokenId);
-
-        require(owner != address(0), "Collection: Invalid token ID");
-        return owner;
     }
 }

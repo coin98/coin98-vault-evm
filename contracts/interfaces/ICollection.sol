@@ -2,9 +2,12 @@
 pragma solidity ^0.8.0;
 
 interface ICollection {
-    function mint(address to, uint256 tokenId, uint256 totalAlloc, uint256 claimedAlloc) external;
+    struct InitParams {
+        address owner;
+        string name;
+        string symbol;
+        bytes32 salt;
+    }
 
-    function ownerOf(uint256 tokenId) external view returns (address);
-
-    function claim(uint256 tokenId, uint256 amount) external;
+    function mint(address to, uint256 tokenId) external;
 }

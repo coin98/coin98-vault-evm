@@ -30,12 +30,10 @@ export async function vaultFixture(): Promise<VaultFixture> {
     const Coin98VaultNft = await ethers.getContractFactory("Coin98VaultNft");
     const coin98VaultNft = await Coin98VaultNft.connect(owner).deploy();
     await coin98VaultNft.deployed();
-    // console.log("Coin98VaultNft deployed to:", coin98VaultNft.address);
 
     const CollectionFactory = await ethers.getContractFactory("Collection");
     const collectionFactory = await CollectionFactory.connect(owner).deploy();
     await collectionFactory.deployed();
-    // console.log("Collection deployed to:", collectionFactory.address);
 
     const Coin98VaultNftFactory = await ethers.getContractFactory("Coin98VaultNftFactory");
     const vaultFactory = await Coin98VaultNftFactory.connect(owner).deploy(
@@ -45,18 +43,19 @@ export async function vaultFixture(): Promise<VaultFixture> {
     await vaultFactory.deployed();
     console.log("Coin98VaultNftFactory deployed to:", vaultFactory.address);
 
-    const salt = "0x" + Hasher.keccak256("vault").toString("hex");
+    const vaultSalt = "0x" + Hasher.keccak256("vault").toString("hex");
     let whitelistData = [
         <WhitelistNftData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
         <WhitelistNftData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
         <WhitelistNftData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
     ];
     let tree = createWhitelistNftTree(whitelistData);
-
     const whitelistRoot = "0x" + tree.root().hash.toString("hex");
-    let initParams = {
+    let vaultInitParams = {
+        owner: owner.address,
         token: c98.address,
         merkleRoot: whitelistRoot,
+        salt: vaultSalt,
         schedules: [
             { timestamp: (await time.latest()) + 100, percent: 10 },
             { timestamp: (await time.latest()) + 200, percent: 20 },
@@ -65,11 +64,19 @@ export async function vaultFixture(): Promise<VaultFixture> {
         ]
     };
 
-    await vaultFactory.connect(owner).createVault("Collection nft", "CNFT", owner.address, initParams, salt);
+    const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
+    let collectionInitParams = {
+        owner: owner.address,
+        name: "Test Collection",
+        symbol: "TC",
+        salt: collectionSalt
+    };
 
-    let vaultAddress = await vaultFactory.getVaultAddress(salt);
+    await vaultFactory.connect(owner).createVault(vaultInitParams, collectionInitParams);
+
+    let vaultAddress = await vaultFactory.getVaultAddress(vaultSalt);
     console.log("Vault address:", vaultAddress);
-    let collectionAddress = await vaultFactory.getCollectionAddress(salt);
+    let collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
     console.log("Collection address:", collectionAddress);
 
     const collection = collectionFactory.attach(collectionAddress);

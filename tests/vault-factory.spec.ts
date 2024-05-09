@@ -24,22 +24,21 @@ describe("Coin98VaultNftFactory", function () {
     describe("Create vault", async () => {
         context("Create vault", async () => {
             let nftAddress: string;
-            let whitelistData: WhitelistNftData[];
-            let tree: any;
 
             it("Should create vault", async () => {
                 const salt = "0x" + Hasher.keccak256("vault").toString("hex");
-                whitelistData = [
+                let whitelistData = [
                     <WhitelistNftData>{ to: accs[0].address, tokenId: 1, totalAlloc: parseEther("1000") },
                     <WhitelistNftData>{ to: accs[1].address, tokenId: 2, totalAlloc: parseEther("2000") },
                     <WhitelistNftData>{ to: accs[2].address, tokenId: 3, totalAlloc: parseEther("3000") }
                 ];
-                tree = createWhitelistNftTree(whitelistData);
+                let tree = createWhitelistNftTree(whitelistData);
                 const whitelistRoot = "0x" + tree.root().hash.toString("hex");
-                let initParams = {
+                let vaultInitParams = {
+                    owner: owner.address,
                     token: c98.address,
-                    nft: nftAddress,
                     merkleRoot: whitelistRoot,
+                    salt: salt,
                     schedules: [
                         { timestamp: (await time.latest()) + 100, percent: 10 },
                         { timestamp: (await time.latest()) + 200, percent: 20 },
@@ -48,9 +47,15 @@ describe("Coin98VaultNftFactory", function () {
                     ]
                 };
 
-                const tx = await vaultFactory
-                    .connect(owner)
-                    .createVault("vaultnft", "VNFT", owner.address, initParams, salt);
+                const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
+                let collectionInitParams = {
+                    owner: owner.address,
+                    name: "Test Collection",
+                    symbol: "TC",
+                    salt: collectionSalt
+                };
+
+                const tx = await vaultFactory.connect(owner).createVault(vaultInitParams, collectionInitParams);
 
                 expect(tx).to.emit(vaultFactory, "VaultCreated");
             });
