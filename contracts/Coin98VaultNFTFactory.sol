@@ -53,7 +53,6 @@ contract Coin98VaultNftFactory is Ownable, Payable, IVaultConfig {
         bytes32 salt
     ) external returns (address vault) {
         address collection = createCollection(name, symbol, owner, salt);
-        console.log("Collection created at: %s", address(collection));
 
         require(
             params.merkleRoot != 0x0000000000000000000000000000000000000000000000000000000000000000,
