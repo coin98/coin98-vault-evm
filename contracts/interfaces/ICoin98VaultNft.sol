@@ -15,12 +15,13 @@ interface ICoin98VaultNft {
     struct InitParams {
         address owner;
         address token;
+        address collection;
         bytes32 merkleRoot;
         bytes32 salt;
         Schedule[] schedules;
     }
 
-    function __Coin98VaultNft_init(InitParams memory params, address collection) external;
+    function __Coin98VaultNft_init(InitParams memory params) external;
 
     function getTotalAlloc(uint256 tokenId) external view returns (uint256);
 

@@ -19,20 +19,18 @@ import "./libraries/ReentrancyGuard.sol";
 contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, ReentrancyGuard {
     using AdvancedERC20 for IERC20;
 
-    address private _factory;
-
     mapping(address => bool) private _isAdmins;
 
-    // TokenID -> claimedSchedules
+    /** TokenID -> claimedSchedules */
     mapping(uint256 => BitMaps.BitMap) private _claimedSchedules; // Store claimed schedules.
 
-    // TokenID -> Allocation
+    /** TokenID -> Allocation */
     mapping(uint256 => Allocation) private _allocs;
 
-    // Index -> Schedule
+    /** Index -> Schedule */
     Schedule[] private _schedules;
 
-    // Merkle root
+    /** Merkle root */
     bytes32 private _merkleRoot;
 
     address private _token;
@@ -44,43 +42,43 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     event AdminsUpdated(address[] admins, bool[] isActives);
     event CollectionUpdated(address collection);
 
-    /// @dev Initial vault
-    function __Coin98VaultNft_init(InitParams memory params, address collection) external initializer {
+    /** @dev Initial vault
+     * @param params InitParams of vault
+     */
+    function __Coin98VaultNft_init(InitParams memory params) external initializer {
         __Ownable_init();
 
         _token = params.token;
-        _collection = collection;
+        _collection = params.collection;
         _merkleRoot = params.merkleRoot;
 
         for (uint256 i = 0; i < params.schedules.length; i++) {
             _schedules.push(params.schedules[i]);
         }
-
-        _factory = msg.sender;
     }
 
-    /// @dev Access Control, only owner and admins are able to access the specified function
+    /** @dev Access Control, only owner and admins are able to access the specified function */
     modifier onlyOwnerOrAdmin() {
-        require(owner() == _msgSender() || _isAdmins[msg.sender], "Ownable: caller is not an admin");
+        require(owner() == _msgSender() || _isAdmins[_msgSender()], "Ownable: caller is not an admin or an owner");
         _;
     }
 
     /**
      * @dev Mint the NFT to the receiver
-     * @param to Address to receive the NFT
+     * @param receiver Address to receive the NFT
      * @param tokenId ID of the NFT
      * @param totalAlloc Total allocation of the NFT
      * @param proofs Merkle proofs
      */
-    function mint(address to, uint256 tokenId, uint256 totalAlloc, bytes32[] calldata proofs) external {
-        bytes32 leaf = keccak256(abi.encodePacked(to, tokenId, totalAlloc));
+    function mint(address receiver, uint256 tokenId, uint256 totalAlloc, bytes32[] calldata proofs) external {
+        bytes32 leaf = keccak256(abi.encodePacked(receiver, tokenId, totalAlloc));
         require(MerkleProof.verify(proofs, _merkleRoot, leaf), "Coin98VaultNft: Invalid proof");
 
-        ICollection(_collection).mint(to, tokenId);
+        ICollection(_collection).mint(receiver, tokenId);
 
         _allocs[tokenId].totalAlloc = totalAlloc;
 
-        emit Minted(to, tokenId, totalAlloc);
+        emit Minted(receiver, tokenId, totalAlloc);
     }
 
     /**
@@ -96,7 +94,7 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
         BitMaps.setTo(_claimedSchedules[tokenId], scheduleIndex, true);
 
-        uint256 amount = (_allocs[tokenId].totalAlloc * _schedules[scheduleIndex].percent) / 100;
+        uint256 amount = (_allocs[tokenId].totalAlloc * _schedules[scheduleIndex].percent) / 10000;
 
         _allocs[tokenId].claimedAlloc += amount;
 
@@ -110,12 +108,13 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         emit Claimed(receiver, tokenId, scheduleIndex, amount);
     }
 
-    /// @dev withdraw the token in the vault, no limit
-    /// @param token address of the token, use address(0) to withdraw gas token
-    /// @param destination recipient address to receive the fund
-    /// @param amount amount of fund to withdaw
-    function withdraw(address token, address destination, uint256 amount) public onlyOwner {
-        require(destination != address(0), "Coin98VaultNft: Destination is zero address");
+    /**  @dev withdraw the token in the vault, no limit
+     * @param token address of the token, use address(0) to withdraw gas token
+     * @param receiver recipient address to receive the fund
+     * @param amount amount of fund to withdaw
+     */
+    function withdraw(address token, address receiver, uint256 amount) public onlyOwner {
+        require(receiver != address(0), "Coin98VaultNft: Receiver is zero address");
 
         uint256 availableAmount;
         if (token == address(0)) {
@@ -127,25 +126,27 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         require(amount <= availableAmount, "Coin98VaultNft: Not enough balance");
 
         if (token == address(0)) {
-            (bool success, ) = destination.call{ value: amount }("");
+            (bool success, ) = receiver.call{ value: amount }("");
             require(success, "Coin98VaultNft: Send ETH failed");
         } else {
-            IERC20(token).safeTransfer(destination, amount);
+            IERC20(token).safeTransfer(receiver, amount);
         }
 
-        emit Withdrawn(_msgSender(), destination, token, amount);
+        emit Withdrawn(_msgSender(), receiver, token, amount);
     }
 
-    /// @dev withdraw NFT from contract
-    /// @param token address of the token, use address(0) to withdraw gas token
-    /// @param destination recipient address to receive the fund
-    /// @param tokenId ID of NFT to withdraw
-    function withdrawNft(address token, address destination, uint256 tokenId) public onlyOwner {
-        require(destination != address(0), "Coin98VaultNft: destination is zero address");
+    /**
+     * @dev withdraw NFT from contract
+     * @param token address of the token, use address(0) to withdraw gas token
+     * @param receiver recipient address to receive the fund
+     * @param tokenId ID of NFT to withdraw
+     */
+    function withdrawNft(address token, address receiver, uint256 tokenId) public onlyOwner {
+        require(receiver != address(0), "Coin98VaultNft: Receiver is zero address");
 
-        IVRC725(token).transferFrom(address(this), destination, tokenId);
+        IVRC725(token).transferFrom(address(this), receiver, tokenId);
 
-        emit Withdrawn(_msgSender(), destination, token, 1);
+        emit Withdrawn(_msgSender(), receiver, token, 1);
     }
 
     // SETTERS
@@ -176,44 +177,50 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
     // GETTERS
 
-    /// @dev returns current admins who can manage the vault
+    /** @dev returns current admins who can manage the vault */
     function isAdmin(address admin) public view returns (bool) {
         return _isAdmins[admin];
     }
 
-    /// @dev address of the factory
-    function factory() public view returns (address) {
-        return _factory;
-    }
-
-    /// @dev Get schedules claim of the vault
+    /** @dev Get schedules claim of the vault */
     function getSchedules() public view returns (Schedule[] memory) {
         return _schedules;
     }
 
-    /// @dev Get total allocation of a token id
-    /// @param tokenId ID of the token
-    /// @return Allocation of the token
+    /** @dev Get total allocation of a token id
+     * @param tokenId ID of the token
+     * @return Allocation of the token
+     */
     function getAlloc(uint256 tokenId) public view returns (Allocation memory) {
         return _allocs[tokenId];
     }
 
-    /// @dev Get total allocation of a token id
+    /** @dev Get total allocation of a token id
+     * @param tokenId ID of the token
+     * @return Total allocation of the token
+     */
     function getTotalAlloc(uint256 tokenId) public view returns (uint256) {
         return _allocs[tokenId].totalAlloc;
     }
 
-    /// @dev Get claimed allocation of a token id
+    /** @dev Get claimed allocation of a token id
+     * @param tokenId ID of the token
+     * @return Claimed allocation of the token
+     */
     function getClaimedAlloc(uint256 tokenId) public view returns (uint256) {
         return _allocs[tokenId].claimedAlloc;
     }
 
-    /// @dev Get contract address of the collection
+    /** @dev Get contract address of the collection
+     * @return Address of the collection contract
+     */
     function getCollectionAddress() public view returns (address) {
         return _collection;
     }
 
-    /// @dev Get contract address of the token
+    /** @dev Get contract address of the token
+     * @return Address of the token contract
+     */
     function getTokenAddress() public view returns (address) {
         return _token;
     }

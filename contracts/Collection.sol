@@ -28,7 +28,6 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
 
     function __Collection_init(string memory name, string memory symbol, address owner) external initializer {
         __VRC725_init(name, symbol, owner);
-        _minters[msg.sender] = true;
     }
 
     function mint(address to, uint256 tokenId) external onlyMinter {
