@@ -140,15 +140,19 @@ contract Coin98VaultNftFactory is Ownable, Payable {
      * @param implementation New implementation of vault
      */
     function setVaultImplementation(address implementation) public onlyOwner {
+        require(implementation != address(0), "Coin98VaultNftFactory: Invalid implementation");
+        require(implementation != _vaultImplementation, "Coin98VaultNftFactory: Same implementation");
         _vaultImplementation = implementation;
 
         emit SetVaultImplementation(implementation);
     }
 
-    /** @dev Set new NFT implementation
+    /** @dev Set new collection implementation
      * @param implementation New implementation of NFT
      */
     function setCollectionImplementation(address implementation) public onlyOwner {
+        require(implementation != address(0), "Coin98VaultNftFactory: Invalid implementation");
+        require(implementation != _collectionImplementation, "Coin98VaultNftFactory: Same implementation");
         _collectionImplementation = implementation;
 
         emit SetCollectionImplementation(implementation);
@@ -174,37 +178,54 @@ contract Coin98VaultNftFactory is Ownable, Payable {
         return ICoin98VaultNft(_collectionToVault[collection]).getClaimedAlloc(tokenId);
     }
 
-    /** @dev get list of vaults initialized through this factory */
+    /** @dev get list of vaults initialized through this factory
+     * @return List of vaults
+     */
     function vaults() external view returns (address[] memory) {
         return _vaults;
     }
 
-    /** @dev get list of collections initialized through this factory */
+    /** @dev get list of collections initialized through this factory
+     * @return List of collections
+     */
     function collections() external view returns (address[] memory) {
         return _collections;
     }
 
-    /** @dev Get implementation */
+    /** @dev Get implementation
+     * @return Implementation address of the vault
+     */
     function getVaultImplementation() public view returns (address) {
         return _vaultImplementation;
     }
 
-    /** @dev Get NFT implementation */
+    /** @dev Get collection implementation
+     * @return Implementation address of the collection
+     */
     function getCollectionImplementation() public view returns (address) {
         return _collectionImplementation;
     }
 
-    /** @dev Get vault address */
+    /** @dev Get vault address
+     * @param salt Salt of the vault
+     * @return Address of the vault
+     */
     function getVaultAddress(bytes32 salt) public view returns (address) {
         return Clones.predictDeterministicAddress(_vaultImplementation, salt);
     }
 
-    /** @dev Get collection address */
+    /** @dev Get collection address
+     * @param salt Salt of the collection
+     * @return Address of the collection
+     */
     function getCollectionAddress(bytes32 salt) public view returns (address) {
         return Clones.predictDeterministicAddress(_collectionImplementation, salt);
     }
 
-    /** @dev Get vault address from collection */
+    /** @dev Get vault address from collection
+     * @param collection Address of the collection
+     * @return Address of the vault
+     */
     function getVaultFromCollection(address collection) public view returns (address) {
         return _collectionToVault[collection];
     }
