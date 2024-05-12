@@ -28,7 +28,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
     event VaultCreated(address indexed vault);
 
     /** @dev Emit `CreatedCollection` when a new NFT is created */
-    event CollectionCreated(address indexed nft);
+    event CollectionCreated(address indexed collection);
 
     /** @dev Emit `Withdrawn` when owner withdraw fund from the factory */
     event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);

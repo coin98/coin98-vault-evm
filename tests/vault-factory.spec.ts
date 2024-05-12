@@ -510,4 +510,76 @@ describe("Coin98VaultNftFactory", function () {
             });
         });
     });
+
+    describe("Get total allocation", async () => {
+        context("Though Coin98VaultNft", async () => {
+            it("Should get total allocation", async () => {
+                let whitelistData = [
+                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+                ];
+                let tree = createWhitelistCollectionTree(whitelistData);
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+                const salt = "0x" + Hasher.keccak256("vault").toString("hex");
+                const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
+
+                const vault = await createVault(owner, salt, collectionSalt);
+
+                const collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
+                // Attach to vault
+                const coin98VaultNft = await ethers.getContractAt("Coin98VaultNft", vault);
+                // mint NFT 1
+                await coin98VaultNft.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
+
+                // Get total allocation of NFT 1
+                const totalAlloc = await vaultFactory.getTotalAlloc(collectionAddress, 1);
+
+                expect(totalAlloc).to.equal(1000);
+            });
+        });
+    });
+
+    describe("Get claimed allocation", async () => {
+        context("Though Coin98VaultNft", async () => {
+            it("Should get claimed allocation", async () => {
+                let whitelistData = [
+                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+                ];
+                let tree = createWhitelistCollectionTree(whitelistData);
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+                const salt = "0x" + Hasher.keccak256("vault").toString("hex");
+                const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
+
+                const vault = await createVault(owner, salt, collectionSalt);
+
+                // Get vault address
+                const vaultAddress = await vaultFactory.getVaultAddress(salt);
+                // Get collection address
+                const collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
+                // Attach to vault
+                const coin98VaultNft = await ethers.getContractAt("Coin98VaultNft", vaultAddress);
+                // mint NFT 1
+                await coin98VaultNft.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
+
+                await c98.connect(owner).approve(vaultAddress, 1000);
+                await c98.connect(owner).transfer(vaultAddress, 1000);
+
+                // Claim schedule 1
+                await time.increaseTo((await time.latest()) + 101);
+                await coin98VaultNft.connect(accs[0]).claim(accs[0].address, 1, 0);
+
+                // Get claimed allocation of NFT 1
+                const claimedAlloc = await vaultFactory.getClaimedAlloc(collectionAddress, 1);
+
+                expect(claimedAlloc).to.equal(100);
+            });
+        });
+    });
 });

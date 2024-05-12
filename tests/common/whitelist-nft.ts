@@ -2,13 +2,13 @@ import { utils } from "ethers";
 import { MerkleTreeKeccak } from "@coin98/solidity-support-library";
 import { BigNumberish } from "ethers";
 
-export interface WhitelistNftData {
+export interface WhitelistCollectionData {
     to: string;
     tokenId: BigNumberish;
     totalAlloc: BigNumberish;
 }
 
-export function createWhitelistNftTree(whitelists: WhitelistNftData[]): MerkleTreeKeccak {
+export function createWhitelistCollectionTree(whitelists: WhitelistCollectionData[]): MerkleTreeKeccak {
     const hashes = whitelists.map(whitelist => {
         const hash = utils.solidityKeccak256(
             ["address", "uint256", "uint256"],

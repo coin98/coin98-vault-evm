@@ -2,8 +2,8 @@ import { ethers } from "hardhat";
 import { parseEther } from "ethers/lib/utils";
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 import { Coin98VaultNft, MockERC20, Collection } from "../../typechain-types";
-import { Hasher, MerkleTreeKeccak } from "@coin98/solidity-support-library";
-import { WhitelistNftData, createWhitelistNftTree } from "../common";
+import { Hasher, MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
+import { WhitelistCollectionData, createWhitelistCollectionTree } from "../common";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 export interface VaultFixture {
@@ -15,7 +15,7 @@ export interface VaultFixture {
     vault: Coin98VaultNft;
     collection: Collection;
     c98: MockERC20;
-    whitelistData: WhitelistNftData[];
+    whitelistData: WhitelistCollectionData[];
     tree: MerkleTreeKeccak;
 }
 
@@ -45,22 +45,23 @@ export async function vaultFixture(): Promise<VaultFixture> {
 
     const vaultSalt = "0x" + Hasher.keccak256("vault").toString("hex");
     let whitelistData = [
-        <WhitelistNftData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-        <WhitelistNftData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-        <WhitelistNftData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+        <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
+        <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
+        <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
     ];
-    let tree = createWhitelistNftTree(whitelistData);
+    let tree = createWhitelistCollectionTree(whitelistData);
     const whitelistRoot = "0x" + tree.root().hash.toString("hex");
     let vaultInitParams = {
         owner: owner.address,
         token: c98.address,
+        collection: ZERO_ADDRESS,
         merkleRoot: whitelistRoot,
         salt: vaultSalt,
         schedules: [
-            { timestamp: (await time.latest()) + 100, percent: 10 },
-            { timestamp: (await time.latest()) + 200, percent: 20 },
-            { timestamp: (await time.latest()) + 300, percent: 30 },
-            { timestamp: (await time.latest()) + 400, percent: 40 }
+            { timestamp: (await time.latest()) + 100, percent: 1000 },
+            { timestamp: (await time.latest()) + 200, percent: 2000 },
+            { timestamp: (await time.latest()) + 300, percent: 3000 },
+            { timestamp: (await time.latest()) + 400, percent: 4000 }
         ]
     };
 

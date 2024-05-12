@@ -42,7 +42,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     event AdminsUpdated(address[] admins, bool[] isActives);
     event CollectionUpdated(address collection);
 
-    /** @dev Initial vault
+    /**
+     * @dev Initial vault
      * @param params InitParams of vault
      */
     function __Coin98VaultNft_init(InitParams memory params) external initializer {
@@ -108,7 +109,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         emit Claimed(receiver, tokenId, scheduleIndex, amount);
     }
 
-    /**  @dev withdraw the token in the vault, no limit
+    /**
+     * @dev withdraw the token in the vault, no limit
      * @param token address of the token, use address(0) to withdraw gas token
      * @param receiver recipient address to receive the fund
      * @param amount amount of fund to withdaw
@@ -156,6 +158,7 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
      * @param collection address of the collection contract
      */
     function setCollection(address collection) external onlyOwnerOrAdmin {
+        require(collection != address(0), "Coin98VaultNft: Collection is zero address");
         _collection = collection;
 
         emit CollectionUpdated(collection);
@@ -177,17 +180,24 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
     // GETTERS
 
-    /** @dev returns current admins who can manage the vault */
+    /**
+     * @dev returns current admins who can manage the vault
+     * @return Status of the admin
+     */
     function isAdmin(address admin) public view returns (bool) {
         return _isAdmins[admin];
     }
 
-    /** @dev Get schedules claim of the vault */
+    /**
+     * @dev Get schedules claim of the vault
+     * @return List of schedules
+     */
     function getSchedules() public view returns (Schedule[] memory) {
         return _schedules;
     }
 
-    /** @dev Get total allocation of a token id
+    /**
+     * @dev Get total allocation of a token id
      * @param tokenId ID of the token
      * @return Allocation of the token
      */
@@ -195,7 +205,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         return _allocs[tokenId];
     }
 
-    /** @dev Get total allocation of a token id
+    /**
+     * @dev Get total allocation of a token id
      * @param tokenId ID of the token
      * @return Total allocation of the token
      */
@@ -203,7 +214,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         return _allocs[tokenId].totalAlloc;
     }
 
-    /** @dev Get claimed allocation of a token id
+    /**
+     * @dev Get claimed allocation of a token id
      * @param tokenId ID of the token
      * @return Claimed allocation of the token
      */
@@ -211,17 +223,27 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         return _allocs[tokenId].claimedAlloc;
     }
 
-    /** @dev Get contract address of the collection
+    /**
+     * @dev Get contract address of the collection
      * @return Address of the collection contract
      */
     function getCollectionAddress() public view returns (address) {
         return _collection;
     }
 
-    /** @dev Get contract address of the token
+    /**
+     * @dev Get contract address of the token
      * @return Address of the token contract
      */
     function getTokenAddress() public view returns (address) {
         return _token;
+    }
+
+    /**
+     * @dev Get claimed status of a token id at a schedule index
+     * @return Claimed status of the token
+     */
+    function getClaimedStatus(uint256 tokenId, uint256 scheduleIndex) public view returns (bool) {
+        return BitMaps.get(_claimedSchedules[tokenId], scheduleIndex);
     }
 }
