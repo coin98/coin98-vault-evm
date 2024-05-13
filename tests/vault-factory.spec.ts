@@ -1,18 +1,15 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
-import { factoryFixture } from "./fixtures/factory.fixture";
+import { factoryFixture } from "./fixtures";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Coin98VaultNftFactory, MockERC20 } from "../typechain-types";
 import { Hasher, ZERO_ADDRESS, ZERO_BYTES32 } from "@coin98/solidity-support-library";
 import { WhitelistCollectionData, createWhitelistCollectionTree } from "./common";
-import { parseEther } from "ethers/lib/utils";
 
 let owner: SignerWithAddress;
 let acc1: SignerWithAddress;
-let acc2: SignerWithAddress;
 let accs: SignerWithAddress[];
-let admin: SignerWithAddress;
 let vaultFactory: Coin98VaultNftFactory;
 let c98: MockERC20;
 
@@ -64,7 +61,7 @@ async function createVault(owner: SignerWithAddress, vaultSalt: string, collecti
 
 describe("Coin98VaultNftFactory", function () {
     beforeEach(async () => {
-        ({ owner, acc1, acc2, admin, accs, vaultFactory, c98 } = await loadFixture(factoryFixture));
+        ({ owner, acc1, accs, vaultFactory, c98 } = await loadFixture(factoryFixture));
     });
 
     describe("Create collection", async () => {

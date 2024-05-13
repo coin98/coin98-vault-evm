@@ -26,4 +26,8 @@ interface ICoin98VaultNft {
     function getTotalAlloc(uint256 tokenId) external view returns (uint256);
 
     function getClaimedAlloc(uint256 tokenId) external view returns (uint256);
+
+    function mint(address receiver, uint256 tokenId, uint256 totalAlloc, bytes32[] calldata proofs) external;
+
+    function claim(address receiver, uint256 tokenId, uint256 scheduleIndex) external;
 }

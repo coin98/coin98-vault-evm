@@ -1,24 +1,24 @@
 import { ethers } from "hardhat";
 import { parseEther } from "ethers/lib/utils";
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
-import { Coin98VaultNft, MockERC20, Collection } from "../../typechain-types";
+import { Coin98VaultNft, MockERC20, Collection, Coin98VaultNftProxy } from "../../typechain-types";
 import { Hasher, MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
 import { WhitelistCollectionData, createWhitelistCollectionTree } from "../common";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
-export interface VaultFixture {
+export interface VaultProxyFixture {
     owner: SignerWithAddress;
     acc1: SignerWithAddress;
-    acc2: SignerWithAddress;
     accs: SignerWithAddress[];
     vault: Coin98VaultNft;
+    vaultProxy: Coin98VaultNftProxy;
     collection: Collection;
     c98: MockERC20;
     tree: MerkleTreeKeccak;
 }
 
-export async function vaultFixture(): Promise<VaultFixture> {
-    const [owner, acc1, acc2, ...accs] = await ethers.getSigners();
+export async function vaultProxyFixture(): Promise<VaultProxyFixture> {
+    const [owner, acc1, ...accs] = await ethers.getSigners();
 
     const C98 = await ethers.getContractFactory("MockERC20");
     const c98 = await C98.deploy("C98", "C98", "10000", 18);
@@ -84,5 +84,9 @@ export async function vaultFixture(): Promise<VaultFixture> {
     await c98.connect(owner).approve(vault.address, 10000);
     await c98.connect(owner).transfer(vault.address, 10000);
 
-    return { owner, acc1, acc2, accs, vault, collection, c98, tree };
+    const Coin98VaultNftProxy = await ethers.getContractFactory("Coin98VaultNftProxy");
+    const vaultProxy = await Coin98VaultNftProxy.connect(owner).deploy();
+    await vaultProxy.deployed();
+
+    return { owner, acc1, accs, vault, vaultProxy, collection, c98, tree };
 }

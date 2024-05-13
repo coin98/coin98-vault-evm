@@ -3,26 +3,22 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Coin98VaultNft, MockERC20, Collection } from "../typechain-types";
 import { MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
-import { vaultFixture } from "./fixtures/vault.fixture";
+import { vaultFixture } from "./fixtures";
 import { WhitelistCollectionData } from "./common";
 import { ethers } from "hardhat";
 
 let owner: SignerWithAddress;
 let acc1: SignerWithAddress;
 let acc2: SignerWithAddress;
-let admin: SignerWithAddress;
 let accs: SignerWithAddress[];
 let vault: Coin98VaultNft;
 let c98: MockERC20;
 let collection: Collection;
-let whitelistData: WhitelistCollectionData[];
 let tree: MerkleTreeKeccak;
 
 describe("Coin98VaultNftFactory", function () {
     beforeEach(async () => {
-        ({ owner, acc1, acc2, admin, accs, vault, collection, c98, whitelistData, tree } = await loadFixture(
-            vaultFixture
-        ));
+        ({ owner, acc1, acc2, accs, vault, collection, c98, tree } = await loadFixture(vaultFixture));
     });
 
     describe("Mint", async () => {
@@ -81,7 +77,7 @@ describe("Coin98VaultNftFactory", function () {
     });
 
     describe("Claim", async () => {
-        context("Not own NFT", async () => {
+        context("Receiver not owner of NFT", async () => {
             it("Should revert", async () => {
                 let whitelistProof = tree.proofs(0);
                 const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));

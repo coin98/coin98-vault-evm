@@ -6,15 +6,13 @@ import { Coin98VaultNftFactory, MockERC20 } from "../../typechain-types";
 export interface FactoryFixture {
     owner: SignerWithAddress;
     acc1: SignerWithAddress;
-    acc2: SignerWithAddress;
-    admin: SignerWithAddress;
     accs: SignerWithAddress[];
     vaultFactory: Coin98VaultNftFactory;
     c98: MockERC20;
 }
 
 export async function factoryFixture(): Promise<FactoryFixture> {
-    const [owner, acc1, acc2, admin, ...accs] = await ethers.getSigners();
+    const [owner, acc1, ...accs] = await ethers.getSigners();
 
     const C98 = await ethers.getContractFactory("MockERC20");
     const c98 = await C98.deploy("C98", "C98", "10000", 18);
@@ -36,5 +34,5 @@ export async function factoryFixture(): Promise<FactoryFixture> {
     await vaultFactory.deployed();
     console.log("Coin98VaultNftFactory deployed to:", vaultFactory.address);
 
-    return { owner, acc1, acc2, admin, accs, vaultFactory, c98 };
+    return { owner, acc1, accs, vaultFactory, c98 };
 }
