@@ -45,9 +45,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
         _collectionImplementation = collectionImplementation;
     }
 
-    function _createVaultWithCollection(
-        ICoin98VaultNft.InitParams memory vaultInitParams
-    ) internal returns (address vault) {
+    function _createVault(ICoin98VaultNft.InitParams memory vaultInitParams) internal returns (address vault) {
         vault = Clones.cloneDeterministic(_vaultImplementation, vaultInitParams.salt);
         ICoin98VaultNft(vault).__Coin98VaultNft_init(vaultInitParams);
         Ownable(vault).transferOwnership(vaultInitParams.owner);
@@ -70,11 +68,11 @@ contract Coin98VaultNftFactory is Ownable, Payable {
             address collection = createCollection(collectionInitParams);
             vaultInitParams.collection = collection;
 
-            vault = _createVaultWithCollection(vaultInitParams);
+            vault = _createVault(vaultInitParams);
 
             Collection(vaultInitParams.collection).setMinter(vault, true);
         } else {
-            vault = _createVaultWithCollection(vaultInitParams);
+            vault = _createVault(vaultInitParams);
         }
 
         _vaults.push(address(vault));
@@ -87,7 +85,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
     function createCollection(ICollection.InitParams memory params) public returns (address collection) {
         collection = Clones.cloneDeterministic(_collectionImplementation, params.salt);
 
-        Collection(collection).__Collection_init(params.name, params.symbol, params.owner, address(this));
+        Collection(collection).__Collection_init(params.name, params.symbol, params.owner);
 
         _collections.push(address(collection));
 
@@ -178,18 +176,21 @@ contract Coin98VaultNftFactory is Ownable, Payable {
         return ICoin98VaultNft(_collectionToVault[collection]).getClaimedAlloc(tokenId);
     }
 
-    /** @dev get list of vaults initialized through this factory
-     * @return List of vaults
+    /** @dev Get vault address at index
+     * @param index Index of the vault
+     * @return Address of the vault
      */
-    function vaults() external view returns (address[] memory) {
-        return _vaults;
+    function vaults(uint256 index) external view returns (address) {
+        return _vaults[index];
     }
 
-    /** @dev get list of collections initialized through this factory
-     * @return List of collections
+    /**
+     * @dev Get collection address at index
+     * @param index Index of the collection
+     * @return Address of the collection
      */
-    function collections() external view returns (address[] memory) {
-        return _collections;
+    function collections(uint256 index) external view returns (address) {
+        return _collections[index];
     }
 
     /** @dev Get implementation

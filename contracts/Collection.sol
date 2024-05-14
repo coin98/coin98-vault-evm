@@ -28,19 +28,14 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
         _;
     }
 
-    modifier onlyOwnerAndFactory() {
+    modifier onlyOwnerOrFactory() {
         require(msg.sender == owner() || msg.sender == _factory, "Collection: Only from owner or factory");
         _;
     }
 
-    function __Collection_init(
-        string memory name,
-        string memory symbol,
-        address owner,
-        address factory
-    ) external initializer {
+    function __Collection_init(string memory name, string memory symbol, address owner) external initializer {
         __VRC725_init(name, symbol, owner);
-        _factory = factory;
+        _factory = msg.sender;
     }
 
     function mint(address to, uint256 tokenId) external onlyMinter {
@@ -66,7 +61,7 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
      * @param minter Address of the new minter.
      * @param isActive True if the minter can perform operations.
      */
-    function setMinter(address minter, bool isActive) public onlyOwnerAndFactory {
+    function setMinter(address minter, bool isActive) public onlyOwnerOrFactory {
         _minters[minter] = isActive;
 
         emit SetMinter(minter, isActive);
