@@ -1,9 +1,9 @@
 import { expect } from "chai";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Coin98VaultNftProxy, MockERC20, Collection, Coin98VaultNft } from "../typechain-types";
-import { MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
-import { WhitelistCollectionData } from "./common";
+import { Coin98VaultNftProxy, MockERC20, Collection, Coin98VaultNft, Coin98VaultNftFactory } from "../typechain-types";
+import { Hasher, MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
+import { WhitelistCollectionData, createWhitelistCollectionTree } from "./common";
 import { ethers } from "hardhat";
 import { vaultProxyFixture } from "./fixtures";
 
@@ -11,6 +11,7 @@ let owner: SignerWithAddress;
 let acc1: SignerWithAddress;
 let accs: SignerWithAddress[];
 let vault: Coin98VaultNft;
+let vaultFactory: Coin98VaultNftFactory;
 let vaultProxy: Coin98VaultNftProxy;
 let collection: Collection;
 let c98: MockERC20;
@@ -18,7 +19,9 @@ let tree: MerkleTreeKeccak;
 
 describe("Coin98VaultNftProxy", function () {
     beforeEach(async () => {
-        ({ owner, acc1, accs, vault, vaultProxy, collection, c98, tree } = await loadFixture(vaultProxyFixture));
+        ({ owner, acc1, accs, vault, vaultFactory, vaultProxy, collection, c98, tree } = await loadFixture(
+            vaultProxyFixture
+        ));
     });
 
     describe("VRC25", async () => {
@@ -158,6 +161,72 @@ describe("Coin98VaultNftProxy", function () {
                 await expect(
                     vaultProxy.connect(accs[1]).claim(vault.address, accs[1].address, 1, 0)
                 ).to.be.revertedWith("Coin98VaultNft: Not owner of token");
+            });
+        });
+    });
+
+    describe("Create Vault", async () => {
+        context("Create vault with correct params", async () => {
+            it("Should create vault", async () => {
+                const vaultSalt = "0x" + Hasher.keccak256("vault-proxy").toString("hex");
+                let whitelistData = [
+                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+                ];
+                let tree = createWhitelistCollectionTree(whitelistData);
+                const whitelistRoot = "0x" + tree.root().hash.toString("hex");
+                let vaultInitParams = {
+                    owner: owner.address,
+                    token: c98.address,
+                    collection: ZERO_ADDRESS,
+                    merkleRoot: whitelistRoot,
+                    salt: vaultSalt,
+                    schedules: [
+                        { timestamp: (await time.latest()) + 100, percent: 1000 },
+                        { timestamp: (await time.latest()) + 200, percent: 2000 },
+                        { timestamp: (await time.latest()) + 300, percent: 3000 },
+                        { timestamp: (await time.latest()) + 400, percent: 4000 }
+                    ]
+                };
+
+                const collectionSalt = "0x" + Hasher.keccak256("collection-proxy").toString("hex");
+                let collectionInitParams = {
+                    owner: owner.address,
+                    name: "Test Collection",
+                    symbol: "TC",
+                    salt: collectionSalt
+                };
+
+                await vaultProxy
+                    .connect(owner)
+                    .createVault(vaultFactory.address, vaultInitParams, collectionInitParams);
+
+                let vaultAddress = await vaultFactory.getVaultAddress(vaultSalt);
+                let collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
+
+                expect(await vaultFactory.vaults()).to.include(vaultAddress);
+                expect(await vaultFactory.collections()).to.include(collectionAddress);
+            });
+        });
+    });
+
+    describe("Create Collection", async () => {
+        context("Create collection with correct params", async () => {
+            it("Should create collection", async () => {
+                const collectionSalt = "0x" + Hasher.keccak256("collection-proxy").toString("hex");
+                let collectionInitParams = {
+                    owner: owner.address,
+                    name: "Test Collection",
+                    symbol: "TC",
+                    salt: collectionSalt
+                };
+
+                await vaultProxy.connect(owner).createCollection(vaultFactory.address, collectionInitParams);
+
+                let collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
+
+                expect(await vaultFactory.collections()).to.include(collectionAddress);
             });
         });
     });

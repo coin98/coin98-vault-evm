@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
+// Interfaces
+import "./interfaces/ICoin98VaultNft.sol";
+import "./interfaces/ICoin98VaultNftFactory.sol";
+
+// Libraries
 import "./libraries/VRC25.sol";
 import "./libraries/AdvancedERC20.sol";
-import "./interfaces/ICoin98VaultNft.sol";
 
 contract Coin98VaultNftProxy is VRC25 {
     using AdvancedERC20 for IERC20;
 
-    constructor() VRC25("Coin98VaultNftProxy", "C98VNP", 18) {}
+    constructor(string memory name, string memory symbol) VRC25(name, symbol, 18) {}
 
     function mint(
         address payable vaultAddress,
@@ -24,15 +28,27 @@ contract Coin98VaultNftProxy is VRC25 {
         ICoin98VaultNft(vaultAddress).claim(receiver, tokenId, scheduleIndex);
     }
 
+    function createVault(
+        address payable factory,
+        ICoin98VaultNft.InitParams memory vaultInitParams,
+        ICollection.InitParams memory collectionInitParams
+    ) external returns (address vault) {
+        return ICoin98VaultNftFactory(factory).createVault(vaultInitParams, collectionInitParams);
+    }
+
+    function createCollection(
+        address payable factory,
+        ICollection.InitParams memory params
+    ) external returns (address collection) {
+        return ICoin98VaultNftFactory(factory).createCollection(params);
+    }
+
     // VRC25
     /**
      * @notice Calculate fee required for action related to this token
      * @param value Amount of fee
      */
     function _estimateFee(uint256 value) internal view override returns (uint256) {
-        if (value > minFee()) {
-            return value;
-        }
-        return minFee();
+        return 0;
     }
 }

@@ -14,6 +14,8 @@ import "./libraries/ReentrancyGuard.sol";
 contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyGuard {
     mapping(address => bool) private _minters; // Mapping to store minter addresses
 
+    address private _factory;
+
     event SetMinter(address minter, bool isActive);
     event Minted(address indexed to, uint256 indexed tokenId);
     event Burned(uint256 indexed tokenId);
@@ -26,8 +28,19 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
         _;
     }
 
-    function __Collection_init(string memory name, string memory symbol, address owner) external initializer {
+    modifier onlyOwnerAndFactory() {
+        require(msg.sender == owner() || msg.sender == _factory, "Collection: Only from owner or factory");
+        _;
+    }
+
+    function __Collection_init(
+        string memory name,
+        string memory symbol,
+        address owner,
+        address factory
+    ) external initializer {
         __VRC725_init(name, symbol, owner);
+        _factory = factory;
     }
 
     function mint(address to, uint256 tokenId) external onlyMinter {
@@ -53,7 +66,7 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
      * @param minter Address of the new minter.
      * @param isActive True if the minter can perform operations.
      */
-    function setMinter(address minter, bool isActive) public onlyOwner {
+    function setMinter(address minter, bool isActive) public onlyOwnerAndFactory {
         _minters[minter] = isActive;
 
         emit SetMinter(minter, isActive);
@@ -67,5 +80,13 @@ contract Collection is VRC725Enumerable, Initializable, ICollection, ReentrancyG
      */
     function isMinter(address minter) external view returns (bool) {
         return _minters[minter];
+    }
+
+    /**
+     * @dev Function to get the factory address.
+     * @return The factory address.
+     */
+    function getFactory() external view returns (address) {
+        return _factory;
     }
 }

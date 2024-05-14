@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
+// Interfaces
 import "./interfaces/IERC721.sol";
 import "./interfaces/IVaultConfig.sol";
 import "./interfaces/ICoin98VaultNft.sol";
@@ -44,7 +45,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
         _collectionImplementation = collectionImplementation;
     }
 
-    function createVaultWithCollection(
+    function _createVaultWithCollection(
         ICoin98VaultNft.InitParams memory vaultInitParams
     ) internal returns (address vault) {
         vault = Clones.cloneDeterministic(_vaultImplementation, vaultInitParams.salt);
@@ -69,12 +70,11 @@ contract Coin98VaultNftFactory is Ownable, Payable {
             address collection = createCollection(collectionInitParams);
             vaultInitParams.collection = collection;
 
-            vault = createVaultWithCollection(vaultInitParams);
+            vault = _createVaultWithCollection(vaultInitParams);
 
             Collection(vaultInitParams.collection).setMinter(vault, true);
-            Ownable(vaultInitParams.collection).transferOwnership(collectionInitParams.owner);
         } else {
-            vault = createVaultWithCollection(vaultInitParams);
+            vault = _createVaultWithCollection(vaultInitParams);
         }
 
         _vaults.push(address(vault));
@@ -87,7 +87,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
     function createCollection(ICollection.InitParams memory params) public returns (address collection) {
         collection = Clones.cloneDeterministic(_collectionImplementation, params.salt);
 
-        Collection(collection).__Collection_init(params.name, params.symbol, address(this));
+        Collection(collection).__Collection_init(params.name, params.symbol, params.owner, address(this));
 
         _collections.push(address(collection));
 
