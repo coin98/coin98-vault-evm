@@ -91,7 +91,7 @@ describe("Coin98VaultNftFactory", function () {
 
                 let collectionAddress = await vaultFactory.getCollectionAddress(salt);
 
-                expect(await vaultFactory.collections(0)).to.equal(collectionAddress);
+                expect(await vaultFactory.getCollection(0)).to.equal(collectionAddress);
             });
         });
     });
@@ -211,8 +211,8 @@ describe("Coin98VaultNftFactory", function () {
 
                 expect(tx).to.emit(vaultFactory, "VaultCreated");
 
-                expect(await vaultFactory.collections(0)).to.equal(collectionAddress);
-                expect(await vaultFactory.vaults(0)).to.equal(vaultAddress);
+                expect(await vaultFactory.getCollection(0)).to.equal(collectionAddress);
+                expect(await vaultFactory.getVault(0)).to.equal(vaultAddress);
             });
         });
 
@@ -238,13 +238,13 @@ describe("Coin98VaultNftFactory", function () {
                 expect(vault2).to.not.equal(vault3);
                 expect(vault1).to.not.equal(vault3);
 
-                expect(await vaultFactory.vaults(0)).to.equal(vault1);
-                expect(await vaultFactory.vaults(1)).to.equal(vault2);
-                expect(await vaultFactory.vaults(2)).to.equal(vault3);
+                expect(await vaultFactory.getVault(0)).to.equal(vault1);
+                expect(await vaultFactory.getVault(1)).to.equal(vault2);
+                expect(await vaultFactory.getVault(2)).to.equal(vault3);
 
-                expect(await vaultFactory.collections(0)).to.equal(collectionAddress1);
-                expect(await vaultFactory.collections(1)).to.equal(collectionAddress2);
-                expect(await vaultFactory.collections(2)).to.equal(collectionAddress3);
+                expect(await vaultFactory.getCollection(0)).to.equal(collectionAddress1);
+                expect(await vaultFactory.getCollection(1)).to.equal(collectionAddress2);
+                expect(await vaultFactory.getCollection(2)).to.equal(collectionAddress3);
             });
         });
 
@@ -452,8 +452,8 @@ describe("Coin98VaultNftFactory", function () {
             });
         });
 
-        context("Get list of vaults", async () => {
-            it("Should get list of vaults", async () => {
+        context("Get list of getVault", async () => {
+            it("Should get list of getVault", async () => {
                 const salt1 = "0x" + Hasher.keccak256("vault1").toString("hex");
                 const salt2 = "0x" + Hasher.keccak256("vault2").toString("hex");
                 const salt3 = "0x" + Hasher.keccak256("vault3").toString("hex");
@@ -466,9 +466,9 @@ describe("Coin98VaultNftFactory", function () {
                 let vault2 = await createVault(owner, salt2, collectionSalt2);
                 let vault3 = await createVault(owner, salt3, collectionSalt3);
 
-                expect(await vaultFactory.vaults(0)).to.equal(vault1);
-                expect(await vaultFactory.vaults(1)).to.equal(vault2);
-                expect(await vaultFactory.vaults(2)).to.equal(vault3);
+                expect(await vaultFactory.getVault(0)).to.equal(vault1);
+                expect(await vaultFactory.getVault(1)).to.equal(vault2);
+                expect(await vaultFactory.getVault(2)).to.equal(vault3);
             });
         });
     });
@@ -485,8 +485,8 @@ describe("Coin98VaultNftFactory", function () {
             });
         });
 
-        context("Get list of collections", async () => {
-            it("Should get list of collections", async () => {
+        context("Get list of getCollection", async () => {
+            it("Should get list of getCollection", async () => {
                 const salt1 = "0x" + Hasher.keccak256("collection1").toString("hex");
                 const salt2 = "0x" + Hasher.keccak256("collection2").toString("hex");
                 const salt3 = "0x" + Hasher.keccak256("collection3").toString("hex");
@@ -495,9 +495,9 @@ describe("Coin98VaultNftFactory", function () {
                 let collection2 = await createCollection(owner, salt2);
                 let collection3 = await createCollection(owner, salt3);
 
-                expect(await vaultFactory.collections(0)).to.equal(collection1);
-                expect(await vaultFactory.collections(1)).to.equal(collection2);
-                expect(await vaultFactory.collections(2)).to.equal(collection3);
+                expect(await vaultFactory.getCollection(0)).to.equal(collection1);
+                expect(await vaultFactory.getCollection(1)).to.equal(collection2);
+                expect(await vaultFactory.getCollection(2)).to.equal(collection3);
             });
         });
     });

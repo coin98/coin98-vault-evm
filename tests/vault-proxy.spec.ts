@@ -205,8 +205,8 @@ describe("Coin98VaultNftProxy", function () {
                 let vaultAddress = await vaultFactory.getVaultAddress(vaultSalt);
                 let collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
 
-                expect(await vaultFactory.vaults()).to.include(vaultAddress);
-                expect(await vaultFactory.collections()).to.include(collectionAddress);
+                expect(await vaultFactory.getVault(1)).to.equal(vaultAddress);
+                expect(await vaultFactory.getCollection(1)).to.equal(collectionAddress);
             });
         });
     });
@@ -226,7 +226,7 @@ describe("Coin98VaultNftProxy", function () {
 
                 let collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
 
-                expect(await vaultFactory.collections()).to.include(collectionAddress);
+                expect(await vaultFactory.getCollection(1)).to.equal(collectionAddress);
             });
         });
     });

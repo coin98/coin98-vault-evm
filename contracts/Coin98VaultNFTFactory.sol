@@ -180,7 +180,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
      * @param index Index of the vault
      * @return Address of the vault
      */
-    function vaults(uint256 index) external view returns (address) {
+    function getVault(uint256 index) external view returns (address) {
         return _vaults[index];
     }
 
@@ -189,7 +189,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
      * @param index Index of the collection
      * @return Address of the collection
      */
-    function collections(uint256 index) external view returns (address) {
+    function getCollection(uint256 index) external view returns (address) {
         return _collections[index];
     }
 
