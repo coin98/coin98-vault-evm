@@ -21,16 +21,16 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
     mapping(address => bool) private _isAdmins;
 
-    /** TokenID -> claimedSchedules */
-    mapping(uint256 => BitMaps.BitMap) private _claimedSchedules; // Store claimed schedules.
+    // TokenID -> claimedSchedules
+    mapping(uint256 => uint256) private _claimedSchedules;
 
-    // Mapping of merkleId to get tokenId
+    // MerkleID -> TokenID
     mapping(uint256 => uint256) private _tokenIds;
 
-    /** Index -> Schedule */
+    // Schedules of the vault
     Schedule[] private _schedules;
 
-    /** Merkle root */
+    // Merkle root of the vault
     bytes32 private _merkleRoot;
 
     address private _token;
@@ -40,6 +40,7 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     event Claimed(address indexed receiver, uint256 indexed tokenId, uint256 scheduleIndex, uint256 amount);
     event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
     event AdminsUpdated(address[] admins, bool[] isActives);
+    event Splited(address indexed receiver, uint256 tokenId, uint256 newTokenId, uint256 rate);
 
     /**
      * @dev Initial vault
@@ -95,9 +96,9 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     function claim(address receiver, uint256 tokenId, uint256 scheduleIndex) external nonReentrant {
         require(IVRC725(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Not owner of token");
         require(_schedules[scheduleIndex].timestamp <= block.timestamp, "Coin98VaultNft: Schedule not available");
-        require(!BitMaps.get(_claimedSchedules[tokenId], scheduleIndex), "Coin98VaultNft: Already claimed");
+        require(!getClaimed(tokenId, scheduleIndex), "Coin98VaultNft: Already claimed");
 
-        BitMaps.setTo(_claimedSchedules[tokenId], scheduleIndex, true);
+        setClaimed(tokenId, scheduleIndex, true);
 
         uint256 totalAlloc = ICreditVaultNFT(_collection).getTotalAlloc(tokenId);
 
@@ -135,7 +136,9 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
         uint256 newToken = ICreditVaultNFT(_collection).mint(receiver, totalAlloc - newTotalAlloc);
 
-        // _claimedSchedules[newToken] = _claimedSchedules[tokenId];
+        _claimedSchedules[newToken] = _claimedSchedules[tokenId];
+
+        emit Splited(receiver, tokenId, newToken, rate);
     }
 
     /**
@@ -230,11 +233,23 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         return _token;
     }
 
+    // BitMaps
+
     /**
-     * @dev Get claimed status of a token id at a schedule index
-     * @return Claimed status of the token
+     * @dev Returns whether the bit at `index` is set.
      */
-    function getClaimedStatus(uint256 tokenId, uint256 scheduleIndex) public view returns (bool) {
-        return BitMaps.get(_claimedSchedules[tokenId], scheduleIndex);
+    function getClaimed(uint256 tokenId, uint256 index) public view returns (bool) {
+        return (_claimedSchedules[tokenId] & (1 << index)) != 0;
+    }
+
+    /**
+     * @dev Sets the bit at `index` to the boolean `value`.
+     */
+    function setClaimed(uint256 tokenId, uint256 index, bool value) internal {
+        if (value) {
+            _claimedSchedules[tokenId] |= 1 << index;
+        } else {
+            _claimedSchedules[tokenId] &= ~(1 << index);
+        }
     }
 }
