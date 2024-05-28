@@ -31,14 +31,14 @@ contract Coin98VaultNftProxy is VRC25 {
     function createVault(
         address payable factory,
         ICoin98VaultNft.InitParams memory vaultInitParams,
-        ICollection.InitParams memory collectionInitParams
+        ICreditVaultNFT.InitParams memory collectionInitParams
     ) external returns (address vault) {
         return ICoin98VaultNftFactory(factory).createVault(vaultInitParams, collectionInitParams);
     }
 
     function createCollection(
         address payable factory,
-        ICollection.InitParams memory params
+        ICreditVaultNFT.InitParams memory params
     ) external returns (address collection) {
         return ICoin98VaultNftFactory(factory).createCollection(params);
     }

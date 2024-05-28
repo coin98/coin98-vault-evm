@@ -7,11 +7,6 @@ interface ICoin98VaultNft {
         uint256 percent;
     }
 
-    struct Allocation {
-        uint256 claimedAlloc;
-        uint256 totalAlloc;
-    }
-
     struct InitParams {
         address owner;
         address token;
@@ -22,10 +17,6 @@ interface ICoin98VaultNft {
     }
 
     function __Coin98VaultNft_init(InitParams memory params) external;
-
-    function getTotalAlloc(uint256 tokenId) external view returns (uint256);
-
-    function getClaimedAlloc(uint256 tokenId) external view returns (uint256);
 
     function mint(address receiver, uint256 tokenId, uint256 totalAlloc, bytes32[] calldata proofs) external;
 

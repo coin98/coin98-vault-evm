@@ -5,14 +5,14 @@ pragma solidity ^0.8.0;
 import "./interfaces/IERC721.sol";
 import "./interfaces/IVaultConfig.sol";
 import "./interfaces/ICoin98VaultNft.sol";
-import "./interfaces/ICollection.sol";
+import "./interfaces/ICreditVaultNFT.sol";
 
 // Libraries
 import "./libraries/AdvancedERC20.sol";
 import "./libraries/Clones.sol";
 import "./libraries/Payable.sol";
 import "./libraries/Ownable.sol";
-import "./Collection.sol";
+import "./CreditVaultNFT.sol";
 
 contract Coin98VaultNftFactory is Ownable, Payable {
     using AdvancedERC20 for IERC20;
@@ -37,7 +37,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
     /** @dev Emit `SetVaultImplementation` when new vault implementation is set */
     event SetVaultImplementation(address indexed implementation);
 
-    /** @dev Emit `SetCollectionImplementation` when new Collection implementation is set */
+    /** @dev Emit `SetCollectionImplementation` when new CreditVaultNFT implementation is set */
     event SetCollectionImplementation(address indexed implementation);
 
     constructor(address vaultImplementation, address collectionImplementation) Ownable(_msgSender()) {
@@ -57,7 +57,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
      */
     function createVault(
         ICoin98VaultNft.InitParams memory vaultInitParams,
-        ICollection.InitParams memory collectionInitParams
+        ICreditVaultNFT.InitParams memory collectionInitParams
     ) external returns (address vault) {
         require(
             vaultInitParams.merkleRoot != 0x0000000000000000000000000000000000000000000000000000000000000000,
@@ -67,13 +67,18 @@ contract Coin98VaultNftFactory is Ownable, Payable {
         if (vaultInitParams.collection == address(0)) {
             address collection = createCollection(collectionInitParams);
             vaultInitParams.collection = collection;
-
-            vault = _createVault(vaultInitParams);
-
-            Collection(vaultInitParams.collection).setMinter(vault, true);
-        } else {
-            vault = _createVault(vaultInitParams);
         }
+        //     vault = _createVault(vaultInitParams);
+
+        //     // CreditVaultNFT(vaultInitParams.collection).setMinter(vault, true);
+        //     // CreatedVaultNFT(vaultInitParams.collection).setVault(vault);
+        // } else {
+        //     vault = _createVault(vaultInitParams);
+        // }
+        vault = _createVault(vaultInitParams);
+
+        CreditVaultNFT(vaultInitParams.collection).setMinter(vault, true);
+        CreditVaultNFT(vaultInitParams.collection).setVault(vault);
 
         _vaults.push(address(vault));
 
@@ -82,10 +87,10 @@ contract Coin98VaultNftFactory is Ownable, Payable {
         emit VaultCreated(address(vault));
     }
 
-    function createCollection(ICollection.InitParams memory params) public returns (address collection) {
+    function createCollection(ICreditVaultNFT.InitParams memory params) public returns (address collection) {
         collection = Clones.cloneDeterministic(_collectionImplementation, params.salt);
 
-        Collection(collection).__Collection_init(params.name, params.symbol, params.owner);
+        CreditVaultNFT(collection).__Collection_init(params.name, params.symbol, params.owner);
 
         _collections.push(address(collection));
 
@@ -164,16 +169,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
      * @param tokenId ID of the NFT
      */
     function getTotalAlloc(address collection, uint256 tokenId) public view returns (uint256) {
-        return ICoin98VaultNft(_collectionToVault[collection]).getTotalAlloc(tokenId);
-    }
-
-    /**
-     * @dev Get the claimed allocation of a NFT
-     * @param collection Contract address of the collection
-     * @param tokenId ID of the NFT
-     */
-    function getClaimedAlloc(address collection, uint256 tokenId) public view returns (uint256) {
-        return ICoin98VaultNft(_collectionToVault[collection]).getClaimedAlloc(tokenId);
+        return ICreditVaultNFT(collection).getTotalAlloc(tokenId);
     }
 
     /** @dev Get vault address at index

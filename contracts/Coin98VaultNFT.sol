@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 // Interfaces
 import "./interfaces/ICoin98VaultNft.sol";
-import "./interfaces/ICollection.sol";
+import "./interfaces/ICreditVaultNFT.sol";
 import "./interfaces/IVaultConfig.sol";
 import "./interfaces/IVRC725.sol";
 
@@ -24,8 +24,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     /** TokenID -> claimedSchedules */
     mapping(uint256 => BitMaps.BitMap) private _claimedSchedules; // Store claimed schedules.
 
-    /** TokenID -> Allocation */
-    mapping(uint256 => Allocation) private _allocs;
+    // Mapping of merkleId to get tokenId
+    mapping(uint256 => uint256) private _tokenIds;
 
     /** Index -> Schedule */
     Schedule[] private _schedules;
@@ -36,11 +36,10 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     address private _token;
     address private _collection;
 
-    event Minted(address indexed to, uint256 indexed tokenId, uint256 totalAlloc);
+    event Minted(address indexed to, uint256 indexed merkleId, uint256 totalAlloc);
     event Claimed(address indexed receiver, uint256 indexed tokenId, uint256 scheduleIndex, uint256 amount);
     event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
     event AdminsUpdated(address[] admins, bool[] isActives);
-    event CollectionUpdated(address collection);
 
     /**
      * @dev Initial vault
@@ -53,9 +52,14 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         _collection = params.collection;
         _merkleRoot = params.merkleRoot;
 
+        uint256 totalSchedule = 0;
+
         for (uint256 i = 0; i < params.schedules.length; i++) {
+            totalSchedule += params.schedules[i].percent;
             _schedules.push(params.schedules[i]);
         }
+
+        require(totalSchedule == 10000, "Coin98VaultNft: Schedule not equal to 100 percent");
     }
 
     /** @dev Access Control, only owner and admins are able to access the specified function */
@@ -67,19 +71,19 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     /**
      * @dev Mint the NFT to the receiver
      * @param receiver Address to receive the NFT
-     * @param tokenId ID of the NFT
+     * @param merkleId ID of the NFT
      * @param totalAlloc Total allocation of the NFT
      * @param proofs Merkle proofs
      */
-    function mint(address receiver, uint256 tokenId, uint256 totalAlloc, bytes32[] calldata proofs) external {
-        bytes32 leaf = keccak256(abi.encodePacked(receiver, tokenId, totalAlloc));
+    function mint(address receiver, uint256 merkleId, uint256 totalAlloc, bytes32[] calldata proofs) external {
+        bytes32 leaf = keccak256(abi.encodePacked(receiver, merkleId, totalAlloc));
         require(MerkleProof.verify(proofs, _merkleRoot, leaf), "Coin98VaultNft: Invalid proof");
+        require(_tokenIds[merkleId] == 0, "Coin98VaultNft: Already minted");
 
-        ICollection(_collection).mint(receiver, tokenId);
+        uint256 tokenId = ICreditVaultNFT(_collection).mint(receiver, totalAlloc);
+        _tokenIds[merkleId] = tokenId;
 
-        _allocs[tokenId].totalAlloc = totalAlloc;
-
-        emit Minted(receiver, tokenId, totalAlloc);
+        emit Minted(receiver, merkleId, totalAlloc);
     }
 
     /**
@@ -95,9 +99,17 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
         BitMaps.setTo(_claimedSchedules[tokenId], scheduleIndex, true);
 
-        uint256 amount = (_allocs[tokenId].totalAlloc * _schedules[scheduleIndex].percent) / 10000;
+        uint256 totalAlloc = ICreditVaultNFT(_collection).getTotalAlloc(tokenId);
 
-        _allocs[tokenId].claimedAlloc += amount;
+        uint256 amount = (totalAlloc * _schedules[scheduleIndex].percent) / 10000;
+
+        // _claimedAllocs[tokenId] += amount;
+
+        uint256 claimedAlloc = ICreditVaultNFT(_collection).getClaimedAlloc(tokenId);
+
+        require(claimedAlloc + amount <= totalAlloc, "Coin98VaultNft: Exceed total allocation");
+
+        ICreditVaultNFT(_collection).updateClaimedAlloc(tokenId, claimedAlloc + amount);
 
         if (_token == address(0)) {
             (bool success, ) = receiver.call{ value: amount }("");
@@ -107,6 +119,23 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         }
 
         emit Claimed(receiver, tokenId, scheduleIndex, amount);
+    }
+
+    function split(address receiver, uint256 tokenId, uint256 rate) external {
+        require(IVRC725(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Not owner of token");
+
+        uint256 totalAlloc = ICreditVaultNFT(_collection).getTotalAlloc(tokenId);
+        uint256 claimedAlloc = ICreditVaultNFT(_collection).getClaimedAlloc(tokenId);
+
+        uint256 newTotalAlloc = (totalAlloc * rate) / 10000;
+        uint256 newClaimedAlloc = (claimedAlloc * rate) / 10000;
+
+        ICreditVaultNFT(_collection).updateTotalAlloc(tokenId, newTotalAlloc);
+        ICreditVaultNFT(_collection).updateClaimedAlloc(tokenId, newClaimedAlloc);
+
+        uint256 newToken = ICreditVaultNFT(_collection).mint(receiver, totalAlloc - newTotalAlloc);
+
+        // _claimedSchedules[newToken] = _claimedSchedules[tokenId];
     }
 
     /**
@@ -154,17 +183,6 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     // SETTERS
 
     /**
-     * @dev Set the collection contract address
-     * @param collection address of the collection contract
-     */
-    function setCollection(address collection) external onlyOwnerOrAdmin {
-        require(collection != address(0), "Coin98VaultNft: Collection is zero address");
-        _collection = collection;
-
-        emit CollectionUpdated(collection);
-    }
-
-    /**
      * @dev Set the admins who can manage the vault
      * @param admins List of admins
      * @param isActives List of status of the admins
@@ -194,33 +212,6 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
      */
     function getSchedules() public view returns (Schedule[] memory) {
         return _schedules;
-    }
-
-    /**
-     * @dev Get total allocation of a token id
-     * @param tokenId ID of the token
-     * @return Allocation of the token
-     */
-    function getAlloc(uint256 tokenId) public view returns (Allocation memory) {
-        return _allocs[tokenId];
-    }
-
-    /**
-     * @dev Get total allocation of a token id
-     * @param tokenId ID of the token
-     * @return Total allocation of the token
-     */
-    function getTotalAlloc(uint256 tokenId) public view returns (uint256) {
-        return _allocs[tokenId].totalAlloc;
-    }
-
-    /**
-     * @dev Get claimed allocation of a token id
-     * @param tokenId ID of the token
-     * @return Claimed allocation of the token
-     */
-    function getClaimedAlloc(uint256 tokenId) public view returns (uint256) {
-        return _allocs[tokenId].claimedAlloc;
     }
 
     /**

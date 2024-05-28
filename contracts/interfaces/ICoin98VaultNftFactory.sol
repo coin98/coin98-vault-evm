@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./ICoin98VaultNft.sol";
-import "./ICollection.sol";
+import "./ICreditVaultNFT.sol";
 
 interface ICoin98VaultNftFactory {
     struct InitParams {
@@ -16,8 +16,8 @@ interface ICoin98VaultNftFactory {
 
     function createVault(
         ICoin98VaultNft.InitParams memory vaultInitParams,
-        ICollection.InitParams memory collectionInitParams
+        ICreditVaultNFT.InitParams memory collectionInitParams
     ) external returns (address vault);
 
-    function createCollection(ICollection.InitParams memory params) external returns (address collection);
+    function createCollection(ICreditVaultNFT.InitParams memory params) external returns (address collection);
 }
