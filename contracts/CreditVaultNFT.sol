@@ -3,15 +3,10 @@ pragma solidity ^0.8.0;
 
 import "./interfaces/ICreditVaultNFT.sol";
 
-import "./libraries/Merkle.sol";
-import "./libraries/BitMaps.sol";
 import "./libraries/Initializable.sol";
 import "./libraries/VRC725Enumerable.sol";
-import "./libraries/Payable.sol";
-import "./libraries/OwnableUpgradeable.sol";
-import "./libraries/ReentrancyGuard.sol";
 
-contract CreditVaultNFT is VRC725Enumerable, Initializable, ICreditVaultNFT, ReentrancyGuard {
+contract CreditVaultNFT is VRC725Enumerable, Initializable, ICreditVaultNFT {
     address private _factory;
     address private _vault;
 

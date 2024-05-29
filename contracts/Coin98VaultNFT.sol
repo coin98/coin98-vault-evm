@@ -11,10 +11,11 @@ import "./interfaces/IVRC725.sol";
 import "./libraries/AdvancedERC20.sol";
 import "./libraries/Payable.sol";
 import "./libraries/OwnableUpgradeable.sol";
-import "./libraries/BitMaps.sol";
 import "./libraries/Initializable.sol";
 import "./libraries/Merkle.sol";
 import "./libraries/ReentrancyGuard.sol";
+
+import "hardhat/console.sol";
 
 contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, ReentrancyGuard {
     using AdvancedERC20 for IERC20;
@@ -148,6 +149,7 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
             if (_feeToken == address(0)) {
                 require(msg.value == _fee, "Coin98VaultNft: Invalid fee amount");
             } else {
+                console.log("feeToken: ", _fee);
                 IERC20(_feeToken).safeTransferFrom(receiver, address(this), _fee);
             }
         }
