@@ -68,13 +68,7 @@ contract Coin98VaultNftFactory is Ownable, Payable {
             address collection = createCollection(collectionInitParams);
             vaultInitParams.collection = collection;
         }
-        //     vault = _createVault(vaultInitParams);
 
-        //     // CreditVaultNFT(vaultInitParams.collection).setMinter(vault, true);
-        //     // CreatedVaultNFT(vaultInitParams.collection).setVault(vault);
-        // } else {
-        //     vault = _createVault(vaultInitParams);
-        // }
         vault = _createVault(vaultInitParams);
 
         CreditVaultNFT(vaultInitParams.collection).setMinter(vault, true);
@@ -87,6 +81,10 @@ contract Coin98VaultNftFactory is Ownable, Payable {
         emit VaultCreated(address(vault));
     }
 
+    /**
+     * @dev Create a new collection
+     * @param params Initialization parameters for the collection
+     */
     function createCollection(ICreditVaultNFT.InitParams memory params) public returns (address collection) {
         collection = Clones.cloneDeterministic(_collectionImplementation, params.salt);
 
@@ -170,6 +168,15 @@ contract Coin98VaultNftFactory is Ownable, Payable {
      */
     function getTotalAlloc(address collection, uint256 tokenId) public view returns (uint256) {
         return ICreditVaultNFT(collection).getTotalAlloc(tokenId);
+    }
+
+    /**
+     * @dev Get the claimed allocation of a NFT
+     * @param collection Contract address of the collection
+     * @param tokenId ID of the NFT
+     */
+    function getClaimedAlloc(address collection, uint256 tokenId) public view returns (uint256) {
+        return ICreditVaultNFT(collection).getClaimedAlloc(tokenId);
     }
 
     /** @dev Get vault address at index

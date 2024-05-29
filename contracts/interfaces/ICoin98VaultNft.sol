@@ -11,6 +11,8 @@ interface ICoin98VaultNft {
         address owner;
         address token;
         address collection;
+        uint256 fee;
+        address feeToken;
         bytes32 merkleRoot;
         bytes32 salt;
         Schedule[] schedules;
@@ -21,4 +23,6 @@ interface ICoin98VaultNft {
     function mint(address receiver, uint256 tokenId, uint256 totalAlloc, bytes32[] calldata proofs) external;
 
     function claim(address receiver, uint256 tokenId, uint256 scheduleIndex) external;
+
+    function split(address receiver, uint256 tokenId, uint256 rate) external payable;
 }

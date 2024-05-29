@@ -32,6 +32,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
     // Merkle root of the vault
     bytes32 private _merkleRoot;
+    uint256 private _fee;
+    address private _feeToken;
 
     address private _token;
     address private _collection;
@@ -40,7 +42,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     event Claimed(address indexed receiver, uint256 indexed tokenId, uint256 scheduleIndex, uint256 amount);
     event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
     event AdminsUpdated(address[] admins, bool[] isActives);
-    event Splited(address indexed receiver, uint256 tokenId, uint256 newTokenId, uint256 rate);
+    event Splitted(address indexed receiver, uint256 tokenId, uint256 newTokenId, uint256 rate);
+    event FeeUpdated(uint256 fee, address feeToken);
 
     /**
      * @dev Initial vault
@@ -49,18 +52,20 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     function __Coin98VaultNft_init(InitParams memory params) external initializer {
         __Ownable_init();
 
-        _token = params.token;
-        _collection = params.collection;
-        _merkleRoot = params.merkleRoot;
-
         uint256 totalSchedule = 0;
-
         for (uint256 i = 0; i < params.schedules.length; i++) {
             totalSchedule += params.schedules[i].percent;
             _schedules.push(params.schedules[i]);
         }
 
         require(totalSchedule == 10000, "Coin98VaultNft: Schedule not equal to 100 percent");
+
+        _token = params.token;
+        _collection = params.collection;
+        _merkleRoot = params.merkleRoot;
+
+        _fee = params.fee;
+        _feeToken = params.feeToken;
     }
 
     /** @dev Access Control, only owner and admins are able to access the specified function */
@@ -82,6 +87,7 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         require(_tokenIds[merkleId] == 0, "Coin98VaultNft: Already minted");
 
         uint256 tokenId = ICreditVaultNFT(_collection).mint(receiver, totalAlloc);
+
         _tokenIds[merkleId] = tokenId;
 
         emit Minted(receiver, merkleId, totalAlloc);
@@ -104,8 +110,6 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
         uint256 amount = (totalAlloc * _schedules[scheduleIndex].percent) / 10000;
 
-        // _claimedAllocs[tokenId] += amount;
-
         uint256 claimedAlloc = ICreditVaultNFT(_collection).getClaimedAlloc(tokenId);
 
         require(claimedAlloc + amount <= totalAlloc, "Coin98VaultNft: Exceed total allocation");
@@ -122,8 +126,9 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         emit Claimed(receiver, tokenId, scheduleIndex, amount);
     }
 
-    function split(address receiver, uint256 tokenId, uint256 rate) external {
+    function split(address receiver, uint256 tokenId, uint256 rate) external payable nonReentrant {
         require(IVRC725(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Not owner of token");
+        require(rate > 0 && rate < 10000, "Coin98VaultNft: Invalid rate");
 
         uint256 totalAlloc = ICreditVaultNFT(_collection).getTotalAlloc(tokenId);
         uint256 claimedAlloc = ICreditVaultNFT(_collection).getClaimedAlloc(tokenId);
@@ -135,10 +140,19 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         ICreditVaultNFT(_collection).updateClaimedAlloc(tokenId, newClaimedAlloc);
 
         uint256 newToken = ICreditVaultNFT(_collection).mint(receiver, totalAlloc - newTotalAlloc);
+        ICreditVaultNFT(_collection).updateClaimedAlloc(newToken, claimedAlloc - newClaimedAlloc);
 
         _claimedSchedules[newToken] = _claimedSchedules[tokenId];
 
-        emit Splited(receiver, tokenId, newToken, rate);
+        if (_fee > 0) {
+            if (_feeToken == address(0)) {
+                require(msg.value == _fee, "Coin98VaultNft: Invalid fee amount");
+            } else {
+                IERC20(_feeToken).safeTransferFrom(receiver, address(this), _fee);
+            }
+        }
+
+        emit Splitted(receiver, tokenId, newToken, rate);
     }
 
     /**
@@ -199,7 +213,27 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         emit AdminsUpdated(admins, isActives);
     }
 
+    /**
+     * @dev Set the fee of the vault
+     * @param fee Fee of the vault
+     */
+    function setFee(uint256 fee, address feeToken) external onlyOwner {
+        _fee = fee;
+        _feeToken = feeToken;
+
+        emit FeeUpdated(fee, feeToken);
+    }
+
     // GETTERS
+
+    /**
+     * @dev returns the token ID of the merkle ID
+     * @param merkleId Merkle index of the merkle tree
+     * @return Token ID of the merkle
+     */
+    function getTokenId(uint256 merkleId) public view returns (uint256) {
+        return _tokenIds[merkleId];
+    }
 
     /**
      * @dev returns current admins who can manage the vault
@@ -231,6 +265,22 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
      */
     function getTokenAddress() public view returns (address) {
         return _token;
+    }
+
+    /**
+     * @dev Get service fee for split NFT
+     * @return Fee
+     */
+    function getFee() public view returns (uint256) {
+        return _fee;
+    }
+
+    /**
+     * @dev Get service fee token for split NFT
+     * @return Address of the fee token
+     */
+    function getFeeToken() public view returns (address) {
+        return _feeToken;
     }
 
     // BitMaps
