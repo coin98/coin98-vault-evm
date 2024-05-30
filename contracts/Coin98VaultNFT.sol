@@ -186,9 +186,6 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         uint256 newTotalAlloc = (totalAlloc * rate) / 10000;
         uint256 newClaimedAlloc = (claimedAlloc * rate) / 10000;
 
-        // ICreditVaultNFT(_collection).updateTotalAlloc(tokenId, newTotalAlloc);
-        // ICreditVaultNFT(_collection).updateClaimedAlloc(tokenId, newClaimedAlloc);
-
         uint256 newToken1 = ICreditVaultNFT(_collection).mint(receiver, newTotalAlloc);
         ICreditVaultNFT(_collection).updateClaimedAlloc(newToken1, newClaimedAlloc);
         _claimedSchedules[newToken1] = _claimedSchedules[tokenId];
