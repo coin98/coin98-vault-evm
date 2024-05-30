@@ -42,16 +42,27 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     address private _collection;
     address private _feeReceiver;
 
+    address private _proxy;
+
     event Minted(address indexed to, uint256 indexed merkleId, uint256 totalAlloc);
     event Claimed(address indexed receiver, uint256 indexed tokenId, uint256 scheduleIndex, uint256 amount);
     event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
     event AdminsUpdated(address[] admins, bool[] isActives);
     event Splitted(address indexed receiver, uint256 tokenId, uint256 newTokenId, uint256 rate);
-    event FeeUpdated(uint256 fee, address feeToken);
+    event FeeUpdated(address indexed token, address oracles, uint256 feeInToken, uint256 feeInUsd);
+    event ProxySet(address indexed proxy);
 
     /** @dev Access Control, only owner and admins are able to access the specified function */
     modifier onlyOwnerOrAdmin() {
-        require(owner() == _msgSender() || _isAdmins[_msgSender()], "Ownable: caller is not an admin or an owner");
+        require(
+            owner() == _msgSender() || _isAdmins[_msgSender()],
+            "Coin98VaultNft: Caller is not an admin or an owner"
+        );
+        _;
+    }
+
+    modifier onlyProxy() {
+        require(_msgSender() == _proxy, "Coin98VaultNft: Only proxy can call this function");
         _;
     }
 
@@ -92,18 +103,20 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
         require(totalSchedule == 10000, "Coin98VaultNft: Schedule not equal to 100 percent");
         require(params.maxSplitRate > 0 && params.maxSplitRate < 10000, "Coin98VaultNft: Invalid split rate");
+        require(params.feeTokenAddresses.length == params.feeTokenInfos.length, "Coin98VaultNft: Invalid fee token");
 
         _token = params.token;
         _collection = params.collection;
         _merkleRoot = params.merkleRoot;
 
-        require(params.feeTokenAddresses.length == params.feeTokenInfos.length, "Coin98VaultNft: Invalid fee token");
         for (uint256 i = 0; i < params.feeTokenInfos.length; i++) {
             _feeTokenInfos[params.feeTokenAddresses[i]] = params.feeTokenInfos[i];
         }
 
         _feeReceiver = params.feeReceiver;
         _maxSplitRate = params.maxSplitRate;
+
+        _proxy = params.proxy;
     }
 
     /**
@@ -160,7 +173,10 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
     function split(address receiver, uint256 tokenId, uint256 rate, address feeToken) external payable nonReentrant {
         require(IVRC725(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Not owner of token");
-        require(IVRC725(_collection).ownerOf(tokenId) == msg.sender, "Coin98VaultNft: Sender not owner of token");
+        require(
+            msg.sender == IVRC725(_collection).ownerOf(tokenId) || msg.sender == _proxy,
+            "Coin98VaultNft: Sender not owner of token or proxy"
+        );
         require(rate > 0 && rate < 10000, "Coin98VaultNft: Invalid rate");
         require(rate <= _maxSplitRate, "Coin98VaultNft: Exceed max split rate");
 
@@ -170,13 +186,18 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         uint256 newTotalAlloc = (totalAlloc * rate) / 10000;
         uint256 newClaimedAlloc = (claimedAlloc * rate) / 10000;
 
-        ICreditVaultNFT(_collection).updateTotalAlloc(tokenId, newTotalAlloc);
-        ICreditVaultNFT(_collection).updateClaimedAlloc(tokenId, newClaimedAlloc);
+        // ICreditVaultNFT(_collection).updateTotalAlloc(tokenId, newTotalAlloc);
+        // ICreditVaultNFT(_collection).updateClaimedAlloc(tokenId, newClaimedAlloc);
 
-        uint256 newToken = ICreditVaultNFT(_collection).mint(receiver, totalAlloc - newTotalAlloc);
-        ICreditVaultNFT(_collection).updateClaimedAlloc(newToken, claimedAlloc - newClaimedAlloc);
+        uint256 newToken1 = ICreditVaultNFT(_collection).mint(receiver, newTotalAlloc);
+        ICreditVaultNFT(_collection).updateClaimedAlloc(newToken1, newClaimedAlloc);
+        _claimedSchedules[newToken1] = _claimedSchedules[tokenId];
 
-        _claimedSchedules[newToken] = _claimedSchedules[tokenId];
+        uint256 newToken2 = ICreditVaultNFT(_collection).mint(receiver, totalAlloc - newTotalAlloc);
+        ICreditVaultNFT(_collection).updateClaimedAlloc(newToken2, claimedAlloc - newClaimedAlloc);
+        _claimedSchedules[newToken2] = _claimedSchedules[tokenId];
+
+        ICreditVaultNFT(_collection).burn(tokenId);
 
         uint256 fee;
         (uint256 price, uint8 priceDecimal) = getPrice(feeToken);
@@ -197,11 +218,12 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
         if (feeToken == address(0)) {
             require(msg.value >= fee, "Coin98VaultNft: Invalid fee amount"); // Checking
+            payable(_feeReceiver).transfer(fee); // Transfer fee to fee receiver
         } else {
             IERC20(feeToken).safeTransferFrom(msg.sender, _feeReceiver, fee); // Transfer fee to fee receiver
         }
 
-        emit Splitted(receiver, tokenId, newToken, rate);
+        emit Splitted(receiver, tokenId, newToken1, rate);
     }
 
     /**
@@ -281,6 +303,31 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         }
     }
 
+    function setFeeTokenInfos(address[] memory feeTokens, FeeTokenInfo[] memory feeTokenInfos) external onlyOwner {
+        require(feeTokens.length == feeTokenInfos.length, "Coin98VaultNft: Invalid input");
+        for (uint256 i = 0; i < feeTokens.length; i++) {
+            _feeTokenInfos[feeTokens[i]] = feeTokenInfos[i];
+
+            emit FeeUpdated(
+                feeTokens[i],
+                feeTokenInfos[i].oracle,
+                feeTokenInfos[i].feeInToken,
+                feeTokenInfos[i].feeInUsd
+            );
+        }
+    }
+
+    /**
+     * @dev Set the proxy address
+     * @param proxy Address of the proxy
+     */
+    function setProxy(address proxy) external onlyOwner {
+        require(proxy != address(0), "Coin98VaultNft: Invalid proxy address");
+        _proxy = proxy;
+
+        emit ProxySet(proxy);
+    }
+
     // GETTERS
 
     /**
@@ -351,5 +398,30 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         uint8 decimals = IPriceAggregator(_feeTokenInfos[token].oracle).decimals();
 
         return (price, decimals);
+    }
+
+    /**
+     * @dev Get fee token info
+     * @param token Address of the token
+     * @return FeeTokenInfo of the token
+     */
+    function getFeeTokenInfo(address token) public view returns (FeeTokenInfo memory) {
+        return _feeTokenInfos[token];
+    }
+
+    /**
+     * @dev Get fee receiver address
+     * @return Address of the fee receiver
+     */
+    function getFeeReceiver() public view returns (address) {
+        return _feeReceiver;
+    }
+
+    /**
+     * @dev Get proxy address
+     * @return Address of the proxy
+     */
+    function getProxy() public view returns (address) {
+        return _proxy;
     }
 }

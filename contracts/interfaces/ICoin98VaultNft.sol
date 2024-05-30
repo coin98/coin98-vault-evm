@@ -14,10 +14,11 @@ interface ICoin98VaultNft {
         uint256 maxSplitRate;
         bytes32 merkleRoot;
         bytes32 salt;
+        Schedule[] schedules;
         address[] feeTokenAddresses;
         FeeTokenInfo[] feeTokenInfos;
         address feeReceiver;
-        Schedule[] schedules;
+        address proxy;
     }
 
     struct FeeTokenInfo {

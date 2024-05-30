@@ -11,6 +11,8 @@ interface ICreditVaultNFT {
 
     function mint(address to, uint256 totalAlloc) external returns (uint256 tokenId);
 
+    function burn(uint256 tokenId) external;
+
     function updateTotalAlloc(uint256 tokenId, uint256 totalAlloc) external;
 
     function updateClaimedAlloc(uint256 tokenId, uint256 claimedAlloc) external;

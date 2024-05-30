@@ -2,15 +2,13 @@
 pragma solidity ^0.8.0;
 
 import "../interfaces/IPriceAggregator.sol";
-import "../libraries/OwnableUpgradeable.sol";
+import "../libraries/Ownable.sol";
 
-contract FixedPriceOracle is OwnableUpgradeable, IPriceAggregator {
+contract FixedPriceOracle is Ownable, IPriceAggregator {
     uint8 private _decimals;
     int256 private _latestPrice;
 
-    constructor() {
-        __Ownable_init();
-    }
+    constructor() Ownable(msg.sender) {}
 
     function decimals() external view override returns (uint8) {
         return _decimals;
