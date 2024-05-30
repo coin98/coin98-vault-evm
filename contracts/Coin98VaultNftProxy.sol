@@ -28,8 +28,14 @@ contract Coin98VaultNftProxy is VRC25 {
         ICoin98VaultNft(vaultAddress).claim(receiver, tokenId, scheduleIndex);
     }
 
-    function split(address payable vaultAddress, address receiver, uint256 tokenId, uint256 rate) external {
-        ICoin98VaultNft(vaultAddress).split(receiver, tokenId, rate);
+    function split(
+        address payable vaultAddress,
+        address receiver,
+        uint256 tokenId,
+        uint256 rate,
+        address feeToken
+    ) external {
+        ICoin98VaultNft(vaultAddress).split(receiver, tokenId, rate, feeToken);
     }
 
     function createVault(

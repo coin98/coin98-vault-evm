@@ -6,6 +6,7 @@ import "./interfaces/ICoin98VaultNft.sol";
 import "./interfaces/ICreditVaultNFT.sol";
 import "./interfaces/IVaultConfig.sol";
 import "./interfaces/IVRC725.sol";
+import "./interfaces/IPriceAggregator.sol";
 
 // Libraries
 import "./libraries/AdvancedERC20.sol";
@@ -15,10 +16,10 @@ import "./libraries/Initializable.sol";
 import "./libraries/Merkle.sol";
 import "./libraries/ReentrancyGuard.sol";
 
-import "hardhat/console.sol";
-
 contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, ReentrancyGuard {
     using AdvancedERC20 for IERC20;
+
+    uint8 private constant PRICE_CONFIG_DECIMALS = 18;
 
     mapping(address => bool) private _isAdmins;
 
@@ -28,16 +29,18 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     // MerkleID -> TokenID
     mapping(uint256 => uint256) private _tokenIds;
 
+    mapping(address => FeeTokenInfo) private _feeTokenInfos;
+
     // Schedules of the vault
     Schedule[] private _schedules;
 
     // Merkle root of the vault
     bytes32 private _merkleRoot;
-    uint256 private _fee;
-    address private _feeToken;
+    uint256 private _maxSplitRate;
 
     address private _token;
     address private _collection;
+    address private _feeReceiver;
 
     event Minted(address indexed to, uint256 indexed merkleId, uint256 totalAlloc);
     event Claimed(address indexed receiver, uint256 indexed tokenId, uint256 scheduleIndex, uint256 amount);
@@ -45,6 +48,34 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     event AdminsUpdated(address[] admins, bool[] isActives);
     event Splitted(address indexed receiver, uint256 tokenId, uint256 newTokenId, uint256 rate);
     event FeeUpdated(uint256 fee, address feeToken);
+
+    /** @dev Access Control, only owner and admins are able to access the specified function */
+    modifier onlyOwnerOrAdmin() {
+        require(owner() == _msgSender() || _isAdmins[_msgSender()], "Ownable: caller is not an admin or an owner");
+        _;
+    }
+
+    /**
+     * @notice Calculate amount of token in base unit based on amount of dollar and price from oracle
+     * @param amount amount of dollar in atto (10e-18)
+     * @return Amount of token in base unit
+     */
+    function _attoUSDToWei(
+        uint256 amount,
+        uint256 tokenPrice,
+        uint8 tokenDecimals,
+        uint8 priceDecimals
+    ) internal pure returns (uint256) {
+        if (priceDecimals + tokenDecimals > PRICE_CONFIG_DECIMALS) {
+            uint8 decs = priceDecimals + tokenDecimals - PRICE_CONFIG_DECIMALS;
+            return (amount * 10 ** decs) / tokenPrice;
+        }
+        if (priceDecimals + tokenDecimals < PRICE_CONFIG_DECIMALS) {
+            uint8 decs = PRICE_CONFIG_DECIMALS - priceDecimals - tokenDecimals;
+            return amount / 10 ** decs / tokenPrice;
+        }
+        return amount / tokenPrice;
+    }
 
     /**
      * @dev Initial vault
@@ -60,19 +91,19 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         }
 
         require(totalSchedule == 10000, "Coin98VaultNft: Schedule not equal to 100 percent");
+        require(params.maxSplitRate > 0 && params.maxSplitRate < 10000, "Coin98VaultNft: Invalid split rate");
 
         _token = params.token;
         _collection = params.collection;
         _merkleRoot = params.merkleRoot;
 
-        _fee = params.fee;
-        _feeToken = params.feeToken;
-    }
+        require(params.feeTokenAddresses.length == params.feeTokenInfos.length, "Coin98VaultNft: Invalid fee token");
+        for (uint256 i = 0; i < params.feeTokenInfos.length; i++) {
+            _feeTokenInfos[params.feeTokenAddresses[i]] = params.feeTokenInfos[i];
+        }
 
-    /** @dev Access Control, only owner and admins are able to access the specified function */
-    modifier onlyOwnerOrAdmin() {
-        require(owner() == _msgSender() || _isAdmins[_msgSender()], "Ownable: caller is not an admin or an owner");
-        _;
+        _feeReceiver = params.feeReceiver;
+        _maxSplitRate = params.maxSplitRate;
     }
 
     /**
@@ -101,11 +132,11 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
      * @param scheduleIndex Index of the schedule
      */
     function claim(address receiver, uint256 tokenId, uint256 scheduleIndex) external nonReentrant {
-        require(IVRC725(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Not owner of token");
+        require(IVRC725(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Receiver not owner of token");
         require(_schedules[scheduleIndex].timestamp <= block.timestamp, "Coin98VaultNft: Schedule not available");
         require(!getClaimed(tokenId, scheduleIndex), "Coin98VaultNft: Already claimed");
 
-        setClaimed(tokenId, scheduleIndex, true);
+        _setClaimed(tokenId, scheduleIndex, true);
 
         uint256 totalAlloc = ICreditVaultNFT(_collection).getTotalAlloc(tokenId);
 
@@ -127,9 +158,11 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         emit Claimed(receiver, tokenId, scheduleIndex, amount);
     }
 
-    function split(address receiver, uint256 tokenId, uint256 rate) external payable nonReentrant {
+    function split(address receiver, uint256 tokenId, uint256 rate, address feeToken) external payable nonReentrant {
         require(IVRC725(_collection).ownerOf(tokenId) == receiver, "Coin98VaultNft: Not owner of token");
+        require(IVRC725(_collection).ownerOf(tokenId) == msg.sender, "Coin98VaultNft: Sender not owner of token");
         require(rate > 0 && rate < 10000, "Coin98VaultNft: Invalid rate");
+        require(rate <= _maxSplitRate, "Coin98VaultNft: Exceed max split rate");
 
         uint256 totalAlloc = ICreditVaultNFT(_collection).getTotalAlloc(tokenId);
         uint256 claimedAlloc = ICreditVaultNFT(_collection).getClaimedAlloc(tokenId);
@@ -145,13 +178,27 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
 
         _claimedSchedules[newToken] = _claimedSchedules[tokenId];
 
-        if (_fee > 0) {
-            if (_feeToken == address(0)) {
-                require(msg.value == _fee, "Coin98VaultNft: Invalid fee amount");
+        uint256 fee;
+        (uint256 price, uint8 priceDecimal) = getPrice(feeToken);
+        if (_feeTokenInfos[feeToken].feeInUsd > 0) {
+            if (feeToken == address(0)) {
+                fee = _attoUSDToWei(_feeTokenInfos[feeToken].feeInUsd, price, 18, priceDecimal);
             } else {
-                console.log("feeToken: ", _fee);
-                IERC20(_feeToken).safeTransferFrom(receiver, address(this), _fee);
+                fee = _attoUSDToWei(
+                    _feeTokenInfos[feeToken].feeInUsd,
+                    price,
+                    IERC20(feeToken).decimals(),
+                    priceDecimal
+                );
             }
+        } else {
+            fee = _feeTokenInfos[feeToken].feeInToken;
+        }
+
+        if (feeToken == address(0)) {
+            require(msg.value >= fee, "Coin98VaultNft: Invalid fee amount"); // Checking
+        } else {
+            IERC20(feeToken).safeTransferFrom(msg.sender, _feeReceiver, fee); // Transfer fee to fee receiver
         }
 
         emit Splitted(receiver, tokenId, newToken, rate);
@@ -215,15 +262,23 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         emit AdminsUpdated(admins, isActives);
     }
 
-    /**
-     * @dev Set the fee of the vault
-     * @param fee Fee of the vault
-     */
-    function setFee(uint256 fee, address feeToken) external onlyOwner {
-        _fee = fee;
-        _feeToken = feeToken;
+    function setMaxSplitRate(uint256 maxSplitRate) external onlyOwner {
+        require(maxSplitRate > 0 && maxSplitRate < 10000, "Coin98VaultNft: Invalid split rate");
+        _maxSplitRate = maxSplitRate;
+    }
 
-        emit FeeUpdated(fee, feeToken);
+    /**
+     * @dev Sets the bit at `index` to the boolean `value`.
+     * @param tokenId ID of the NFT
+     * @param index Index of the schedule
+     * @param value is claimed or not
+     */
+    function _setClaimed(uint256 tokenId, uint256 index, bool value) internal {
+        if (value) {
+            _claimedSchedules[tokenId] |= 1 << index;
+        } else {
+            _claimedSchedules[tokenId] &= ~(1 << index);
+        }
     }
 
     // GETTERS
@@ -270,38 +325,31 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     }
 
     /**
-     * @dev Get service fee for split NFT
-     * @return Fee
+     * @dev Get merkle root of the vault
+     * @return Merkle root of the vault
      */
-    function getFee() public view returns (uint256) {
-        return _fee;
+    function getMaxSplitRate() public view returns (uint256) {
+        return _maxSplitRate;
     }
-
-    /**
-     * @dev Get service fee token for split NFT
-     * @return Address of the fee token
-     */
-    function getFeeToken() public view returns (address) {
-        return _feeToken;
-    }
-
-    // BitMaps
 
     /**
      * @dev Returns whether the bit at `index` is set.
+     * @param tokenId ID of the NFT
+     * @param index Index of the schedule
+     * @return Is claimed or not
      */
     function getClaimed(uint256 tokenId, uint256 index) public view returns (bool) {
         return (_claimedSchedules[tokenId] & (1 << index)) != 0;
     }
 
     /**
-     * @dev Sets the bit at `index` to the boolean `value`.
+     * @dev Get price and decimals by collection ID.
      */
-    function setClaimed(uint256 tokenId, uint256 index, bool value) internal {
-        if (value) {
-            _claimedSchedules[tokenId] |= 1 << index;
-        } else {
-            _claimedSchedules[tokenId] &= ~(1 << index);
-        }
+    function getPrice(address token) public view returns (uint256, uint8) {
+        require(_feeTokenInfos[token].oracle != address(0), "Coin98VaultNft: Invalid item");
+        uint256 price = uint256(IPriceAggregator(_feeTokenInfos[token].oracle).latestAnswer());
+        uint8 decimals = IPriceAggregator(_feeTokenInfos[token].oracle).decimals();
+
+        return (price, decimals);
     }
 }

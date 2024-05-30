@@ -11,11 +11,19 @@ interface ICoin98VaultNft {
         address owner;
         address token;
         address collection;
-        uint256 fee;
-        address feeToken;
+        uint256 maxSplitRate;
         bytes32 merkleRoot;
         bytes32 salt;
+        address[] feeTokenAddresses;
+        FeeTokenInfo[] feeTokenInfos;
+        address feeReceiver;
         Schedule[] schedules;
+    }
+
+    struct FeeTokenInfo {
+        address oracle;
+        uint256 feeInToken;
+        uint256 feeInUsd;
     }
 
     function __Coin98VaultNft_init(InitParams memory params) external;
@@ -24,5 +32,5 @@ interface ICoin98VaultNft {
 
     function claim(address receiver, uint256 tokenId, uint256 scheduleIndex) external;
 
-    function split(address receiver, uint256 tokenId, uint256 rate) external payable;
+    function split(address receiver, uint256 tokenId, uint256 rate, address feeToken) external payable;
 }
