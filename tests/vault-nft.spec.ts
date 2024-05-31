@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Coin98VaultNft, MockERC20, CreditVaultNFT, FixedPriceOracle } from "../typechain-types";
+import { Coin98VaultNft, MockERC20, CreditVaultNFT, FixedPriceOracle, Coin98VaultNftProxy } from "../typechain-types";
 import { MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
 import { vaultFixture } from "./fixtures";
 import { WhitelistCollectionData } from "./common";
@@ -13,6 +13,7 @@ let acc2: SignerWithAddress;
 let accs: SignerWithAddress[];
 let vault: Coin98VaultNft;
 let fixedPriceOracle: FixedPriceOracle;
+let vaultProxy: Coin98VaultNftProxy;
 let c98: MockERC20;
 let usdt: MockERC20;
 let collection: CreditVaultNFT;
@@ -20,9 +21,8 @@ let tree: MerkleTreeKeccak;
 
 describe("Coin98VaultNft", function () {
     beforeEach(async () => {
-        ({ owner, acc1, acc2, accs, vault, collection, fixedPriceOracle, c98, usdt, tree } = await loadFixture(
-            vaultFixture
-        ));
+        ({ owner, acc1, acc2, accs, vault, collection, fixedPriceOracle, vaultProxy, c98, usdt, tree } =
+            await loadFixture(vaultFixture));
     });
 
     describe("Mint", async () => {
@@ -423,6 +423,30 @@ describe("Coin98VaultNft", function () {
                 await expect(vault.connect(acc1).claim(acc1.address, 2, 1)).to.be.emit(vault, "Claimed");
             });
         });
+
+        context("Exceed max split rate", async () => {
+            it("Should revert", async () => {
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+                await vault.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
+
+                await expect(vault.connect(accs[0]).split(accs[0].address, 1, 7001, usdt.address)).to.be.revertedWith(
+                    "Coin98VaultNft: Exceed max split rate"
+                );
+            });
+        });
+
+        context("Exceed min split rate", async () => {
+            it("Should revert", async () => {
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+                await vault.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
+
+                await expect(vault.connect(accs[0]).split(accs[0].address, 1, 2999, usdt.address)).to.be.revertedWith(
+                    "Coin98VaultNft: Exceed min split rate"
+                );
+            });
+        });
     });
 
     describe("Fee", async () => {
@@ -699,6 +723,63 @@ describe("Coin98VaultNft", function () {
         });
     });
 
+    describe("Set proxy", async () => {
+        context("Non owner", async () => {
+            it("Should revert", async () => {
+                await expect(vault.connect(acc1).setProxy(vaultProxy.address)).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                );
+            });
+        });
+
+        context("Owner", async () => {
+            it("Should set proxy correctly", async () => {
+                const tx = await vault.connect(owner).setProxy(vaultProxy.address);
+
+                await expect(tx).to.emit(vault, "ProxyUpdated").withArgs(vaultProxy.address);
+                expect(await vault.getProxy()).to.equal(vaultProxy.address);
+            });
+        });
+    });
+
+    describe("Set min split rate", async () => {
+        context("Non owner", async () => {
+            it("Should revert", async () => {
+                await expect(vault.connect(acc1).setMinSplitRate(3000)).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                );
+            });
+        });
+
+        context("Owner", async () => {
+            it("Should set min split rate correctly", async () => {
+                const tx = await vault.connect(owner).setMinSplitRate(3000);
+
+                await expect(tx).to.emit(vault, "MinSplitRateUpdated").withArgs(3000);
+                expect(await vault.getMinSplitRate()).to.equal(3000);
+            });
+        });
+    });
+
+    describe("Set max split rate", async () => {
+        context("Non owner", async () => {
+            it("Should revert", async () => {
+                await expect(vault.connect(acc1).setMaxSplitRate(7000)).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                );
+            });
+        });
+
+        context("Owner", async () => {
+            it("Should set max split rate correctly", async () => {
+                const tx = await vault.connect(owner).setMaxSplitRate(7000);
+
+                await expect(tx).to.emit(vault, "MaxSplitRateUpdated").withArgs(7000);
+                expect(await vault.getMaxSplitRate()).to.equal(7000);
+            });
+        });
+    });
+
     describe("Collection", async () => {
         context("Get total allocation of token", async () => {
             it("Should get total allocation of token", async () => {
@@ -796,6 +877,59 @@ describe("Coin98VaultNft", function () {
                 await vault.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
 
                 expect(await vault.getTokenId(1)).to.equal(1);
+            });
+        });
+
+        context("Get fee receiver", async () => {
+            it("Should get fee receiver", async () => {
+                expect(await vault.getFeeReceiver()).to.equal(owner.address);
+            });
+        });
+
+        context("Get proxy address", async () => {
+            it("Should get proxy address", async () => {
+                expect(await vault.getProxy()).to.equal(vaultProxy.address);
+            });
+        });
+
+        context("Get fee token infos", async () => {
+            it("Should get fee token infos", async () => {
+                const feeTokenInfos = await vault.getFeeTokenInfo(usdt.address);
+
+                expect(feeTokenInfos.feeInToken).to.equal(0);
+                expect(feeTokenInfos.feeInUsd).to.equal(ethers.utils.parseEther("1"));
+                expect(feeTokenInfos.oracle).to.equal(fixedPriceOracle.address);
+            });
+
+            it("Should get after set", async () => {
+                await vault.connect(owner).setFeeTokenInfos(
+                    [usdt.address],
+                    [
+                        {
+                            oracle: fixedPriceOracle.address,
+                            feeInToken: 0,
+                            feeInUsd: ethers.utils.parseEther("0.5")
+                        }
+                    ]
+                );
+
+                const feeTokenInfos = await vault.getFeeTokenInfo(usdt.address);
+
+                expect(feeTokenInfos.feeInToken).to.equal(0);
+                expect(feeTokenInfos.feeInUsd).to.equal(ethers.utils.parseEther("0.5"));
+                expect(feeTokenInfos.oracle).to.equal(fixedPriceOracle.address);
+            });
+        });
+
+        context("Get min split rate", async () => {
+            it("Should get min split rate", async () => {
+                expect(await vault.getMinSplitRate()).to.equal(3000);
+            });
+        });
+
+        context("Get max split rate", async () => {
+            it("Should get max split rate", async () => {
+                expect(await vault.getMaxSplitRate()).to.equal(7000);
             });
         });
     });

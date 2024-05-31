@@ -19,6 +19,7 @@ export interface VaultFixture {
     acc2: SignerWithAddress;
     accs: SignerWithAddress[];
     vault: Coin98VaultNft;
+    vaultProxy: Coin98VaultNftProxy;
     collection: CreditVaultNFT;
     fixedPriceOracle: FixedPriceOracle;
     c98: MockERC20;
@@ -110,5 +111,5 @@ export async function vaultFixture(): Promise<VaultFixture> {
 
     await fixedPriceOracle.connect(owner).updatePrice(ethers.utils.parseEther("1"), 18);
 
-    return { owner, acc1, acc2, accs, vault, collection, fixedPriceOracle, c98, usdt, tree };
+    return { owner, acc1, acc2, accs, vault, collection, fixedPriceOracle, vaultProxy, c98, usdt, tree };
 }

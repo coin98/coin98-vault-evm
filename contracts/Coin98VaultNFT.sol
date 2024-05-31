@@ -302,6 +302,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     function setMaxSplitRate(uint256 maxSplitRate) external onlyOwner {
         require(maxSplitRate > 0 && maxSplitRate < 10000, "Coin98VaultNft: Invalid split rate");
         _maxSplitRate = maxSplitRate;
+
+        emit MaxSplitRateUpdated(maxSplitRate);
     }
 
     /**
@@ -311,6 +313,8 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     function setMinSplitRate(uint256 minSplitRate) external onlyOwner {
         require(minSplitRate > 0 && minSplitRate < 10000, "Coin98VaultNft: Invalid split rate");
         _minSplitrate = minSplitRate;
+
+        emit MinSplitRateUpdated(minSplitRate);
     }
 
     /**
