@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { factoryFixture } from "./fixtures";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Coin98VaultNftFactory, MockERC20 } from "../typechain-types";
+import { Coin98VaultNftFactory, Coin98VaultNftProxy, FixedPriceOracle, MockERC20 } from "../typechain-types";
 import { Hasher, ZERO_ADDRESS, ZERO_BYTES32 } from "@coin98/solidity-support-library";
 import { WhitelistCollectionData, createWhitelistCollectionTree } from "./common";
 
@@ -11,7 +11,10 @@ let owner: SignerWithAddress;
 let acc1: SignerWithAddress;
 let accs: SignerWithAddress[];
 let vaultFactory: Coin98VaultNftFactory;
+let vaultProxy: Coin98VaultNftProxy;
 let c98: MockERC20;
+let usdt: MockERC20;
+let fixedPriceOracle: FixedPriceOracle;
 
 async function createCollection(owner: SignerWithAddress, salt: string) {
     let initParams = {
@@ -27,9 +30,9 @@ async function createCollection(owner: SignerWithAddress, salt: string) {
 
 async function createVault(owner: SignerWithAddress, vaultSalt: string, collectionSalt: string) {
     let whitelistData = [
-        <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-        <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-        <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+        <WhitelistCollectionData>{ to: accs[0].address, merkleId: 1, totalAlloc: 1000 },
+        <WhitelistCollectionData>{ to: accs[1].address, merkleId: 2, totalAlloc: 2000 },
+        <WhitelistCollectionData>{ to: accs[2].address, merkleId: 3, totalAlloc: 3000 }
     ];
     let tree = createWhitelistCollectionTree(whitelistData);
     const whitelistRoot = "0x" + tree.root().hash.toString("hex");
@@ -37,6 +40,8 @@ async function createVault(owner: SignerWithAddress, vaultSalt: string, collecti
         owner: owner.address,
         token: c98.address,
         collection: ZERO_ADDRESS,
+        maxSplitRate: 7000,
+        minSplitRate: 3000,
         merkleRoot: whitelistRoot,
         salt: vaultSalt,
         schedules: [
@@ -44,7 +49,17 @@ async function createVault(owner: SignerWithAddress, vaultSalt: string, collecti
             { timestamp: (await time.latest()) + 200, percent: 2000 },
             { timestamp: (await time.latest()) + 300, percent: 3000 },
             { timestamp: (await time.latest()) + 400, percent: 4000 }
-        ]
+        ],
+        feeTokenAddresses: [usdt.address],
+        feeTokenInfos: [
+            {
+                oracle: fixedPriceOracle.address,
+                feeInToken: 0,
+                feeInUsd: ethers.utils.parseEther("1")
+            }
+        ],
+        feeReceiver: owner.address,
+        proxy: vaultProxy.address
     };
 
     let collectionInitParams = {
@@ -61,7 +76,9 @@ async function createVault(owner: SignerWithAddress, vaultSalt: string, collecti
 
 describe("Coin98VaultNftFactory", function () {
     beforeEach(async () => {
-        ({ owner, acc1, accs, vaultFactory, c98 } = await loadFixture(factoryFixture));
+        ({ owner, acc1, accs, vaultFactory, vaultProxy, fixedPriceOracle, c98, usdt } = await loadFixture(
+            factoryFixture
+        ));
     });
 
     describe("Create collection", async () => {
@@ -101,9 +118,9 @@ describe("Coin98VaultNftFactory", function () {
             it("Should create vault", async () => {
                 const salt = "0x" + Hasher.keccak256("vault").toString("hex");
                 let whitelistData = [
-                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+                    <WhitelistCollectionData>{ to: accs[0].address, merkleId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, merkleId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, merkleId: 3, totalAlloc: 3000 }
                 ];
                 let tree = createWhitelistCollectionTree(whitelistData);
                 const whitelistRoot = "0x" + tree.root().hash.toString("hex");
@@ -111,6 +128,8 @@ describe("Coin98VaultNftFactory", function () {
                     owner: owner.address,
                     token: c98.address,
                     collection: ZERO_ADDRESS,
+                    maxSplitRate: 7000,
+                    minSplitRate: 3000,
                     merkleRoot: whitelistRoot,
                     salt: salt,
                     schedules: [
@@ -118,7 +137,17 @@ describe("Coin98VaultNftFactory", function () {
                         { timestamp: (await time.latest()) + 200, percent: 2000 },
                         { timestamp: (await time.latest()) + 300, percent: 3000 },
                         { timestamp: (await time.latest()) + 400, percent: 4000 }
-                    ]
+                    ],
+                    feeTokenAddresses: [usdt.address],
+                    feeTokenInfos: [
+                        {
+                            oracle: fixedPriceOracle.address,
+                            feeInToken: 0,
+                            feeInUsd: 100
+                        }
+                    ],
+                    feeReceiver: owner.address,
+                    proxy: vaultProxy.address
                 };
 
                 const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
@@ -143,6 +172,10 @@ describe("Coin98VaultNftFactory", function () {
                     owner: owner.address,
                     token: c98.address,
                     collection: ZERO_ADDRESS,
+                    fee: 0,
+                    feeToken: usdt.address,
+                    maxSplitRate: 7000,
+                    minSplitRate: 3000,
                     merkleRoot: ZERO_BYTES32,
                     salt: salt,
                     schedules: [
@@ -150,7 +183,17 @@ describe("Coin98VaultNftFactory", function () {
                         { timestamp: (await time.latest()) + 200, percent: 2000 },
                         { timestamp: (await time.latest()) + 300, percent: 3000 },
                         { timestamp: (await time.latest()) + 400, percent: 4000 }
-                    ]
+                    ],
+                    feeTokenAddresses: [usdt.address],
+                    feeTokenInfos: [
+                        {
+                            oracle: fixedPriceOracle.address,
+                            feeInToken: 0,
+                            feeInUsd: ethers.utils.parseEther("1")
+                        }
+                    ],
+                    feeReceiver: owner.address,
+                    proxy: vaultProxy.address
                 };
 
                 const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
@@ -183,9 +226,9 @@ describe("Coin98VaultNftFactory", function () {
 
                 const salt = "0x" + Hasher.keccak256("vault").toString("hex");
                 let whitelistData = [
-                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+                    <WhitelistCollectionData>{ to: accs[0].address, merkleId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, merkleId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, merkleId: 3, totalAlloc: 3000 }
                 ];
 
                 let tree = createWhitelistCollectionTree(whitelistData);
@@ -195,6 +238,10 @@ describe("Coin98VaultNftFactory", function () {
                     owner: owner.address,
                     token: c98.address,
                     collection: collectionAddress,
+                    fee: 0,
+                    feeToken: usdt.address,
+                    maxSplitRate: 7000,
+                    minSplitRate: 3000,
                     merkleRoot: whitelistRoot,
                     salt: salt,
                     schedules: [
@@ -202,7 +249,17 @@ describe("Coin98VaultNftFactory", function () {
                         { timestamp: (await time.latest()) + 200, percent: 2000 },
                         { timestamp: (await time.latest()) + 300, percent: 3000 },
                         { timestamp: (await time.latest()) + 400, percent: 4000 }
-                    ]
+                    ],
+                    feeTokenAddresses: [usdt.address],
+                    feeTokenInfos: [
+                        {
+                            oracle: fixedPriceOracle.address,
+                            feeInToken: 0,
+                            feeInUsd: ethers.utils.parseEther("1")
+                        }
+                    ],
+                    feeReceiver: owner.address,
+                    proxy: vaultProxy.address
                 };
 
                 const tx = await vaultFactory.connect(owner).createVault(vaultInitParams, collectionInitParams);
@@ -252,9 +309,9 @@ describe("Coin98VaultNftFactory", function () {
             it("Should revert ", async () => {
                 const salt = "0x" + Hasher.keccak256("vault").toString("hex");
                 let whitelistData = [
-                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+                    <WhitelistCollectionData>{ to: accs[0].address, merkleId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, merkleId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, merkleId: 3, totalAlloc: 3000 }
                 ];
                 let tree = createWhitelistCollectionTree(whitelistData);
                 const whitelistRoot = "0x" + tree.root().hash.toString("hex");
@@ -262,6 +319,8 @@ describe("Coin98VaultNftFactory", function () {
                     owner: owner.address,
                     token: c98.address,
                     collection: ZERO_ADDRESS,
+                    maxSplitRate: 7000,
+                    minSplitRate: 3000,
                     merkleRoot: whitelistRoot,
                     salt: salt,
                     schedules: [
@@ -269,7 +328,17 @@ describe("Coin98VaultNftFactory", function () {
                         { timestamp: (await time.latest()) + 200, percent: 2000 },
                         { timestamp: (await time.latest()) + 300, percent: 3000 },
                         { timestamp: (await time.latest()) + 400, percent: 4000 }
-                    ]
+                    ],
+                    feeTokenAddresses: [usdt.address],
+                    feeTokenInfos: [
+                        {
+                            oracle: fixedPriceOracle.address,
+                            feeInToken: 0,
+                            feeInUsd: ethers.utils.parseEther("1")
+                        }
+                    ],
+                    feeReceiver: owner.address,
+                    proxy: vaultProxy.address
                 };
 
                 const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
@@ -285,6 +354,56 @@ describe("Coin98VaultNftFactory", function () {
                 await expect(
                     vaultFactory.connect(owner).createVault(vaultInitParams, collectionInitParams)
                 ).to.be.revertedWith("ERC1167: create2 failed");
+            });
+        });
+
+        context("Total schedule percent is not 10000", async () => {
+            it("Should revert", async () => {
+                const salt = "0x" + Hasher.keccak256("vault").toString("hex");
+                let whitelistData = [
+                    <WhitelistCollectionData>{ to: accs[0].address, merkleId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, merkleId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, merkleId: 3, totalAlloc: 3000 }
+                ];
+                let tree = createWhitelistCollectionTree(whitelistData);
+                const whitelistRoot = "0x" + tree.root().hash.toString("hex");
+                let vaultInitParams = {
+                    owner: owner.address,
+                    token: c98.address,
+                    collection: ZERO_ADDRESS,
+                    maxSplitRate: 7000,
+                    minSplitRate: 3000,
+                    merkleRoot: whitelistRoot,
+                    salt: salt,
+                    schedules: [
+                        { timestamp: (await time.latest()) + 100, percent: 4000 },
+                        { timestamp: (await time.latest()) + 200, percent: 2000 },
+                        { timestamp: (await time.latest()) + 300, percent: 3000 },
+                        { timestamp: (await time.latest()) + 400, percent: 4000 }
+                    ],
+                    feeTokenAddresses: [usdt.address],
+                    feeTokenInfos: [
+                        {
+                            oracle: fixedPriceOracle.address,
+                            feeInToken: 0,
+                            feeInUsd: ethers.utils.parseEther("1")
+                        }
+                    ],
+                    feeReceiver: owner.address,
+                    proxy: vaultProxy.address
+                };
+
+                const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
+                let collectionInitParams = {
+                    owner: owner.address,
+                    name: "Test Collection",
+                    symbol: "TC",
+                    salt: collectionSalt
+                };
+
+                await expect(
+                    vaultFactory.connect(owner).createVault(vaultInitParams, collectionInitParams)
+                ).to.be.revertedWith("Coin98VaultNft: Schedule not equal to 100 percent");
             });
         });
     });
@@ -384,8 +503,8 @@ describe("Coin98VaultNftFactory", function () {
     describe("Set collection implementation", async () => {
         context("Set implementation", async () => {
             it("Should emit implementation", async () => {
-                const Collection = await ethers.getContractFactory("Collection");
-                const collection = await Collection.connect(owner).deploy();
+                const CreditVaultNFT = await ethers.getContractFactory("CreditVaultNFT");
+                const collection = await CreditVaultNFT.connect(owner).deploy();
                 await collection.deployed();
 
                 const tx = await vaultFactory.connect(owner).setCollectionImplementation(collection.address);
@@ -396,8 +515,8 @@ describe("Coin98VaultNftFactory", function () {
                 // Get collection implementation
                 const collectionImplementation = await vaultFactory.getCollectionImplementation();
 
-                const Collection = await ethers.getContractFactory("Collection");
-                const collection = await Collection.connect(owner).deploy();
+                const CreditVaultNFT = await ethers.getContractFactory("CreditVaultNFT");
+                const collection = await CreditVaultNFT.connect(owner).deploy();
                 await collection.deployed();
 
                 await vaultFactory.connect(owner).setCollectionImplementation(collection.address);
@@ -419,8 +538,8 @@ describe("Coin98VaultNftFactory", function () {
 
         context("Set implementation with non-owner", async () => {
             it("Should revert", async () => {
-                const Collection = await ethers.getContractFactory("Collection");
-                const collection = await Collection.connect(owner).deploy();
+                const CreditVaultNFT = await ethers.getContractFactory("CreditVaultNFT");
+                const collection = await CreditVaultNFT.connect(owner).deploy();
                 await collection.deployed();
 
                 await expect(
@@ -440,7 +559,7 @@ describe("Coin98VaultNftFactory", function () {
     });
 
     describe("Get vault", async () => {
-        context("Get vault address", async () => {
+        context("Get vault address from implementation", async () => {
             it("Should get vault address", async () => {
                 const salt = "0x" + Hasher.keccak256("vault").toString("hex");
                 const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
@@ -452,8 +571,8 @@ describe("Coin98VaultNftFactory", function () {
             });
         });
 
-        context("Get list of getVault", async () => {
-            it("Should get list of getVault", async () => {
+        context("Get vault from index", async () => {
+            it("Should get list of vaults", async () => {
                 const salt1 = "0x" + Hasher.keccak256("vault1").toString("hex");
                 const salt2 = "0x" + Hasher.keccak256("vault2").toString("hex");
                 const salt3 = "0x" + Hasher.keccak256("vault3").toString("hex");
@@ -474,7 +593,7 @@ describe("Coin98VaultNftFactory", function () {
     });
 
     describe("Get collection", async () => {
-        context("Get collection address", async () => {
+        context("Get collection address from implementation", async () => {
             it("Should get collection address", async () => {
                 const salt = "0x" + Hasher.keccak256("collection").toString("hex");
 
@@ -485,8 +604,8 @@ describe("Coin98VaultNftFactory", function () {
             });
         });
 
-        context("Get list of getCollection", async () => {
-            it("Should get list of getCollection", async () => {
+        context("Get collection from index", async () => {
+            it("Should get list of collections", async () => {
                 const salt1 = "0x" + Hasher.keccak256("collection1").toString("hex");
                 const salt2 = "0x" + Hasher.keccak256("collection2").toString("hex");
                 const salt3 = "0x" + Hasher.keccak256("collection3").toString("hex");
@@ -516,78 +635,6 @@ describe("Coin98VaultNftFactory", function () {
                 const vaultAddress = await vaultFactory.getVaultFromCollection(collectionAddress);
 
                 expect(vault).to.equal(vaultAddress);
-            });
-        });
-    });
-
-    describe("Get total allocation", async () => {
-        context("Though Coin98VaultNft", async () => {
-            it("Should get total allocation", async () => {
-                let whitelistData = [
-                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
-                ];
-                let tree = createWhitelistCollectionTree(whitelistData);
-                let whitelistProof = tree.proofs(0);
-                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
-
-                const salt = "0x" + Hasher.keccak256("vault").toString("hex");
-                const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
-
-                const vault = await createVault(owner, salt, collectionSalt);
-
-                const collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
-                // Attach to vault
-                const coin98VaultNft = await ethers.getContractAt("Coin98VaultNft", vault);
-                // mint NFT 1
-                await coin98VaultNft.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
-
-                // Get total allocation of NFT 1
-                const totalAlloc = await vaultFactory.getTotalAlloc(collectionAddress, 1);
-
-                expect(totalAlloc).to.equal(1000);
-            });
-        });
-    });
-
-    describe("Get claimed allocation", async () => {
-        context("Though Coin98VaultNft", async () => {
-            it("Should get claimed allocation", async () => {
-                let whitelistData = [
-                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
-                ];
-                let tree = createWhitelistCollectionTree(whitelistData);
-                let whitelistProof = tree.proofs(0);
-                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
-
-                const salt = "0x" + Hasher.keccak256("vault").toString("hex");
-                const collectionSalt = "0x" + Hasher.keccak256("collection").toString("hex");
-
-                const vault = await createVault(owner, salt, collectionSalt);
-
-                // Get vault address
-                const vaultAddress = await vaultFactory.getVaultAddress(salt);
-                // Get collection address
-                const collectionAddress = await vaultFactory.getCollectionAddress(collectionSalt);
-                // Attach to vault
-                const coin98VaultNft = await ethers.getContractAt("Coin98VaultNft", vaultAddress);
-                // mint NFT 1
-                await coin98VaultNft.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
-
-                await c98.connect(owner).approve(vaultAddress, 1000);
-                await c98.connect(owner).transfer(vaultAddress, 1000);
-
-                // Claim schedule 1
-                await time.increaseTo((await time.latest()) + 101);
-                await coin98VaultNft.connect(accs[0]).claim(accs[0].address, 1, 0);
-
-                // Get claimed allocation of NFT 1
-                const claimedAlloc = await vaultFactory.getClaimedAlloc(collectionAddress, 1);
-
-                expect(claimedAlloc).to.equal(100);
             });
         });
     });

@@ -4,7 +4,7 @@ import { BigNumberish } from "ethers";
 
 export interface WhitelistCollectionData {
     to: string;
-    tokenId: BigNumberish;
+    merkleId: BigNumberish;
     totalAlloc: BigNumberish;
 }
 
@@ -12,7 +12,7 @@ export function createWhitelistCollectionTree(whitelists: WhitelistCollectionDat
     const hashes = whitelists.map(whitelist => {
         const hash = utils.solidityKeccak256(
             ["address", "uint256", "uint256"],
-            [whitelist.to, whitelist.tokenId, whitelist.totalAlloc]
+            [whitelist.to, whitelist.merkleId, whitelist.totalAlloc]
         );
         return Buffer.from(hash.substring(2), "hex");
     });

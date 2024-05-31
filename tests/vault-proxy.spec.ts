@@ -1,7 +1,14 @@
 import { expect } from "chai";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Coin98VaultNftProxy, MockERC20, Collection, Coin98VaultNft, Coin98VaultNftFactory } from "../typechain-types";
+import {
+    Coin98VaultNftProxy,
+    MockERC20,
+    CreditVaultNFT,
+    Coin98VaultNft,
+    Coin98VaultNftFactory,
+    FixedPriceOracle
+} from "../typechain-types";
 import { Hasher, MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
 import { WhitelistCollectionData, createWhitelistCollectionTree } from "./common";
 import { ethers } from "hardhat";
@@ -13,15 +20,16 @@ let accs: SignerWithAddress[];
 let vault: Coin98VaultNft;
 let vaultFactory: Coin98VaultNftFactory;
 let vaultProxy: Coin98VaultNftProxy;
-let collection: Collection;
+let collection: CreditVaultNFT;
+let fixedPriceOracle: FixedPriceOracle;
 let c98: MockERC20;
+let usdt: MockERC20;
 let tree: MerkleTreeKeccak;
 
 describe("Coin98VaultNftProxy", function () {
     beforeEach(async () => {
-        ({ owner, acc1, accs, vault, vaultFactory, vaultProxy, collection, c98, tree } = await loadFixture(
-            vaultProxyFixture
-        ));
+        ({ owner, acc1, accs, vault, vaultFactory, vaultProxy, collection, fixedPriceOracle, c98, usdt, tree } =
+            await loadFixture(vaultProxyFixture));
     });
 
     describe("VRC25", async () => {
@@ -109,6 +117,53 @@ describe("Coin98VaultNftProxy", function () {
         });
     });
 
+    describe("Split", async () => {
+        context("Split with correct params", async () => {
+            it("Should split", async () => {
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+                await vaultProxy.connect(accs[0]).mint(vault.address, accs[0].address, 1, 1000, proofs);
+
+                await usdt.connect(owner).mint(accs[0].address, ethers.utils.parseEther("100"));
+                await usdt.connect(accs[0]).approve(vault.address, ethers.utils.parseEther("100"));
+
+                const tx = await vaultProxy
+                    .connect(accs[0])
+                    .split(vault.address, accs[0].address, 1, 6000, usdt.address);
+                expect(await collection.ownerOf(2)).to.equal(accs[0].address);
+
+                expect(tx).to.emit(vault, "Minted").withArgs(accs[0].address, 2, 500);
+            });
+        });
+
+        context("Split with invalid token id", async () => {
+            it("Should revert", async () => {
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+                await vaultProxy.connect(accs[0]).mint(vault.address, accs[0].address, 1, 1000, proofs);
+
+                await expect(
+                    vaultProxy.connect(accs[0]).split(vault.address, accs[0].address, 0, 6000, usdt.address)
+                ).to.be.revertedWith("VRC725: invalid token ID");
+            });
+        });
+
+        context("Split with invalid amount", async () => {
+            it("Should revert", async () => {
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+
+                await vaultProxy.connect(accs[0]).mint(vault.address, accs[0].address, 1, 1000, proofs);
+
+                await expect(
+                    vaultProxy.connect(accs[0]).split(vault.address, accs[0].address, 1, 10001, usdt.address)
+                ).to.be.revertedWith("Coin98VaultNft: Invalid rate");
+            });
+        });
+    });
+
     describe("Claim", async () => {
         context("Claim with correct params", async () => {
             it("Should claim", async () => {
@@ -160,7 +215,7 @@ describe("Coin98VaultNftProxy", function () {
 
                 await expect(
                     vaultProxy.connect(accs[1]).claim(vault.address, accs[1].address, 1, 0)
-                ).to.be.revertedWith("Coin98VaultNft: Not owner of token");
+                ).to.be.revertedWith("Coin98VaultNft: Receiver not owner of token");
             });
         });
     });
@@ -170,9 +225,9 @@ describe("Coin98VaultNftProxy", function () {
             it("Should create vault", async () => {
                 const vaultSalt = "0x" + Hasher.keccak256("vault-proxy").toString("hex");
                 let whitelistData = [
-                    <WhitelistCollectionData>{ to: accs[0].address, tokenId: 1, totalAlloc: 1000 },
-                    <WhitelistCollectionData>{ to: accs[1].address, tokenId: 2, totalAlloc: 2000 },
-                    <WhitelistCollectionData>{ to: accs[2].address, tokenId: 3, totalAlloc: 3000 }
+                    <WhitelistCollectionData>{ to: accs[0].address, merkleId: 1, totalAlloc: 1000 },
+                    <WhitelistCollectionData>{ to: accs[1].address, merkleId: 2, totalAlloc: 2000 },
+                    <WhitelistCollectionData>{ to: accs[2].address, merkleId: 3, totalAlloc: 3000 }
                 ];
                 let tree = createWhitelistCollectionTree(whitelistData);
                 const whitelistRoot = "0x" + tree.root().hash.toString("hex");
@@ -180,6 +235,10 @@ describe("Coin98VaultNftProxy", function () {
                     owner: owner.address,
                     token: c98.address,
                     collection: ZERO_ADDRESS,
+                    fee: 0,
+                    feeToken: usdt.address,
+                    maxSplitRate: 7000,
+                    minSplitRate: 3000,
                     merkleRoot: whitelistRoot,
                     salt: vaultSalt,
                     schedules: [
@@ -187,13 +246,23 @@ describe("Coin98VaultNftProxy", function () {
                         { timestamp: (await time.latest()) + 200, percent: 2000 },
                         { timestamp: (await time.latest()) + 300, percent: 3000 },
                         { timestamp: (await time.latest()) + 400, percent: 4000 }
-                    ]
+                    ],
+                    feeTokenAddresses: [usdt.address],
+                    feeTokenInfos: [
+                        {
+                            oracle: fixedPriceOracle.address,
+                            feeInToken: 0,
+                            feeInUsd: 100
+                        }
+                    ],
+                    feeReceiver: owner.address,
+                    proxy: vaultProxy.address
                 };
 
                 const collectionSalt = "0x" + Hasher.keccak256("collection-proxy").toString("hex");
                 let collectionInitParams = {
                     owner: owner.address,
-                    name: "Test Collection",
+                    name: "Test CreditVaultNFT",
                     symbol: "TC",
                     salt: collectionSalt
                 };
@@ -211,13 +280,13 @@ describe("Coin98VaultNftProxy", function () {
         });
     });
 
-    describe("Create Collection", async () => {
+    describe("Create CreditVaultNFT", async () => {
         context("Create collection with correct params", async () => {
             it("Should create collection", async () => {
                 const collectionSalt = "0x" + Hasher.keccak256("collection-proxy").toString("hex");
                 let collectionInitParams = {
                     owner: owner.address,
-                    name: "Test Collection",
+                    name: "Test CreditVaultNFT",
                     symbol: "TC",
                     salt: collectionSalt
                 };
