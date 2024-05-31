@@ -42,7 +42,6 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
     address private _token;
     address private _collection;
     address private _feeReceiver;
-
     address private _proxy;
 
     event Minted(address indexed to, uint256 indexed merkleId, uint256 totalAlloc);
@@ -191,6 +190,7 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
         require(rate > 0 && rate < 10000, "Coin98VaultNft: Invalid rate");
         require(rate <= _maxSplitRate, "Coin98VaultNft: Exceed max split rate");
         require(rate >= _minSplitrate, "Coin98VaultNft: Exceed min split rate");
+        require(isExistFeeToken(feeToken), "Coin98VaultNft: Invalid fee token");
 
         uint256 totalAlloc = ICreditVaultNFT(_collection).getTotalAlloc(tokenId);
         uint256 claimedAlloc = ICreditVaultNFT(_collection).getClaimedAlloc(tokenId);
@@ -466,5 +466,9 @@ contract Coin98VaultNft is ICoin98VaultNft, Payable, OwnableUpgradeable, Reentra
      */
     function getProxy() public view returns (address) {
         return _proxy;
+    }
+
+    function isExistFeeToken(address token) public view returns (bool) {
+        return _feeTokenInfos[token].oracle != address(0);
     }
 }

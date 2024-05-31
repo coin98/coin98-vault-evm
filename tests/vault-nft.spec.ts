@@ -273,6 +273,18 @@ describe("Coin98VaultNft", function () {
             });
         });
 
+        context("Invalid fee token", async () => {
+            it("Should revert", async () => {
+                let whitelistProof = tree.proofs(0);
+                const proofs = whitelistProof.map(node => "0x" + node.hash.toString("hex"));
+                await vault.connect(accs[0]).mint(accs[0].address, 1, 1000, proofs);
+
+                await expect(vault.connect(accs[0]).split(accs[0].address, 1, 6000, c98.address)).to.be.revertedWith(
+                    "Coin98VaultNft: Invalid fee token"
+                );
+            });
+        });
+
         context("Split correctly", async () => {
             it("Should emit event", async () => {
                 let whitelistProof = tree.proofs(0);
