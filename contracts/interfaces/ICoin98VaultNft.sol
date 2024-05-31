@@ -12,6 +12,7 @@ interface ICoin98VaultNft {
         address token;
         address collection;
         uint256 maxSplitRate;
+        uint256 minSplitRate;
         bytes32 merkleRoot;
         bytes32 salt;
         Schedule[] schedules;
@@ -34,4 +35,6 @@ interface ICoin98VaultNft {
     function claim(address receiver, uint256 tokenId, uint256 scheduleIndex) external;
 
     function split(address receiver, uint256 tokenId, uint256 rate, address feeToken) external payable;
+
+    function getCollectionAddress() external view returns (address);
 }

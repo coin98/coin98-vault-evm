@@ -4,10 +4,12 @@ pragma solidity ^0.8.0;
 // Interfaces
 import "./interfaces/ICoin98VaultNft.sol";
 import "./interfaces/ICoin98VaultNftFactory.sol";
+import "./interfaces/ICreditVaultNFT.sol";
 
 // Libraries
 import "./libraries/VRC25.sol";
 import "./libraries/AdvancedERC20.sol";
+import "./CreditVaultNFT.sol";
 
 contract Coin98VaultNftProxy is VRC25 {
     using AdvancedERC20 for IERC20;
@@ -35,6 +37,10 @@ contract Coin98VaultNftProxy is VRC25 {
         uint256 rate,
         address feeToken
     ) external {
+        require(
+            msg.sender == CreditVaultNFT(ICoin98VaultNft(vaultAddress).getCollectionAddress()).ownerOf(tokenId),
+            "Coin98VaultNftProxy: Sender not owner of token"
+        );
         ICoin98VaultNft(vaultAddress).split(receiver, tokenId, rate, feeToken);
     }
 

@@ -9,6 +9,11 @@ interface ICreditVaultNFT {
         bytes32 salt;
     }
 
+    struct Allocation {
+        uint256 claimedAlloc;
+        uint256 totalAlloc;
+    }
+
     function mint(address to, uint256 totalAlloc) external returns (uint256 tokenId);
 
     function burn(uint256 tokenId) external;

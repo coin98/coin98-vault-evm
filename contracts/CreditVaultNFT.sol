@@ -17,11 +17,6 @@ contract CreditVaultNFT is VRC725Enumerable, Initializable, ICreditVaultNFT {
     // Mapping of token Id to get allocation
     mapping(uint256 => Allocation) private _allocs;
 
-    struct Allocation {
-        uint256 claimedAlloc;
-        uint256 totalAlloc;
-    }
-
     event SetMinter(address minter, bool isActive);
     event Minted(address indexed to, uint256 indexed tokenId);
     event Burned(uint256 indexed tokenId);
