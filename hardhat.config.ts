@@ -1,21 +1,19 @@
-import "@nomicfoundation/hardhat-toolbox";
-import dotenv from "dotenv";
-import "hardhat-dependency-compiler";
+import '@nomicfoundation/hardhat-toolbox';
+import dotenv from 'dotenv';
+import 'hardhat-dependency-compiler';
 // import 'hardhat-deploy';
-import "hardhat-gas-reporter";
-import { HardhatUserConfig } from "hardhat/config";
+import 'hardhat-gas-reporter';
+import { HardhatUserConfig } from 'hardhat/config';
 
 dotenv.config();
 
-const privateKey =
-  process.env.PRIVATE_KEY ||
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
-const infuraKey = process.env.INFURA_API_KEY || "";
-const etherscanApi = process.env.ETHERSCAN_API_KEY || "";
+const privateKey = process.env.PRIVATE_KEY || '0x0000000000000000000000000000000000000000000000000000000000000000';
+const infuraKey = process.env.INFURA_API_KEY || '';
+const etherscanApi = process.env.ETHERSCAN_API_KEY || '';
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.17",
+    version: '0.8.17',
     settings: {
       optimizer: {
         enabled: true,
@@ -25,7 +23,7 @@ const config: HardhatUserConfig = {
         // do not include the metadata hash, since this is machine dependent
         // and we want all generated code to be deterministic
         // https://docs.soliditylang.org/en/v0.7.6/metadata.html
-        bytecodeHash: "none",
+        bytecodeHash: 'none',
       },
     },
   },
@@ -35,69 +33,69 @@ const config: HardhatUserConfig = {
     },
     mainnet: {
       url: `https://mainnet.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     goerli: {
       url: `https://goerli.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     sepolia: {
       url: `https://sepolia.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     arbitrumRinkeby: {
       url: `https://arbitrum-rinkeby.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     arbitrum: {
       url: `https://arbitrum-mainnet.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     bnb: {
       url: `https://bsc-dataseed.binance.org/`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     mumbai: {
       url: `https://polygon-mumbai.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     optimism: {
       url: `https://optimism-mainnet.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     optimismKovan: {
       url: `https://optimism-kovan.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
     polygon: {
       url: `https://polygon-mainnet.infura.io/v3/${infuraKey}`,
-      accounts: [privateKey],
+      accounts: [privateKey]
     },
   },
   etherscan: {
-    apiKey: etherscanApi,
+    apiKey: etherscanApi
   },
   paths: {
-    artifacts: "./artifacts",
-    cache: "./cache",
-    // deploy: "./deploy",
-    sources: "./contracts",
-    tests: "./tests",
+    artifacts: './artifacts',
+    cache: './cache',
+    // deploy: './deploy',
+    sources: './contracts',
+    tests: './tests',
   },
   dependencyCompiler: {
     paths: [
-      "@coin98/solidity-support-library/contracts/tokens/ERC20.sol",
-      "@coin98/solidity-support-library/contracts/tokens/LegacyERC20.sol",
+      '@coin98/solidity-support-library/contracts/tokens/ERC20.sol',
+      '@coin98/solidity-support-library/contracts/tokens/LegacyERC20.sol',
     ],
   },
   gasReporter: {
-    currency: "USD",
+    currency: 'USD',
     enabled: true,
-    token: "ETH",
+    token: 'ETH',
   },
   mocha: {
-    timeout: 60000,
-  },
+    timeout: 60000
+  }
 };
 
 export default config;
