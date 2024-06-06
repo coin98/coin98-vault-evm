@@ -8,8 +8,8 @@ import "./lib/VRC725.sol";
 contract MatrixVault is Coin98VaultV2 {
     using AdvancedERC20 for IERC20;
 
-    // NFT ID => (Event ID => Claimed)
-    mapping(uint256 => mapping(uint256 => bool)) internal _isClaimedByToken;
+    //  (Event ID => Index ID => NFT ID => Claimed))
+    mapping(uint256 => mapping(uint256 => mapping(uint256 => bool))) internal _isClaimedByToken;
 
     event RedeemedForCollectionHolder(
         uint256 indexed eventId,
@@ -33,8 +33,8 @@ contract MatrixVault is Coin98VaultV2 {
         uint256 sendingAmount
     );
 
-    function _setTokenClaimed(uint256 tokenId, uint256 eventId) internal {
-        _isClaimedByToken[tokenId][eventId] = true;
+    function _setTokenClaimed(uint256 eventId, uint256 index, uint256 tokenId) internal {
+        _isClaimedByToken[eventId][index][tokenId] = true;
     }
 
     function _redeemForCollectionHolder(
@@ -55,7 +55,6 @@ contract MatrixVault is Coin98VaultV2 {
         require(receiver != address(0), "C98Vault: Invalid receiver");
         require(VRC725(collectionAddress).ownerOf(tokenId) == receiver, "C98Vault: Invalid owner");
         require(timestamp <= block.timestamp, "C98Vault: Schedule locked");
-        require(!_isClaimedByToken[tokenId][eventId], "C98Vault: Claimed");
 
         EventData memory eventData = _eventDatas[eventId];
         require(eventData.isActive > 0, "C98Vault: Invalid event");
@@ -72,8 +71,6 @@ contract MatrixVault is Coin98VaultV2 {
 
             require(receivingAmount <= availableAmount, "C98Vault: Insufficient token");
         }
-
-        _setTokenClaimed(tokenId, eventId);
 
         if (fee > 0) {
             require(_msgValue() >= fee, "C98Vault: Invalid fee");
@@ -110,6 +107,7 @@ contract MatrixVault is Coin98VaultV2 {
         uint256 sendingAmount,
         bytes32[] calldata proofs
     ) public payable {
+        require(!_isClaimedByToken[eventId][index][tokenId], "C98Vault: Claimed");
         uint256 zero = 0;
         bytes32 node = keccak256(
             abi.encodePacked(index, timestamp, collectionAddress, zero, receivingAmount, sendingAmount)
@@ -126,6 +124,8 @@ contract MatrixVault is Coin98VaultV2 {
             node,
             proofs
         );
+
+        _setTokenClaimed(eventId, index, tokenId);
 
         emit RedeemedForCollectionHolder(
             eventId,
