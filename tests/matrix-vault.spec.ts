@@ -614,6 +614,71 @@ describe("MatrixVault", function () {
         ).to.be.revertedWith("C98Vault: Claimed");
       });
     });
+
+    context("Redeem with same event id, different index but same token id", async () => {
+      it("Should change token balance", async () => {
+        const eventId = ethers.utils.solidityKeccak256(["string"], ["event"]);
+        const currentTimestamp = await time.latest();
+        let whitelist = [
+          <WhitelistCollectionData>{
+            index: 0,
+            unlockTimestamp: (await time.latest()) + 100,
+            collectionAddress: starship.address,
+            tokenId: 0,
+            receivingAmount: 1000000,
+            sendingAmount: 0,
+          },
+          <WhitelistCollectionData>{
+            index: 1,
+            unlockTimestamp: (await time.latest()) + 200,
+            collectionAddress: starship.address,
+            tokenId: 0,
+            receivingAmount: 1000000,
+            sendingAmount: 0,
+          },
+        ];
+
+        const tree = createWhitelistCollectionTree(whitelist);
+        const root = "0x" + tree.root().hash.toString("hex");
+
+        await matrixVaultInstance.connect(owner).createEvent(eventId, root, c98.address, ZERO_ADDRESS);
+
+        let proof = await getProof(tree, 0);
+        await time.increaseTo(currentTimestamp + 101);
+        await matrixVaultInstance
+          .connect(account1)
+          .redeemForCollectionHolder(
+            eventId,
+            account1.address,
+            0,
+            currentTimestamp + 100,
+            starship.address,
+            0,
+            1000000,
+            0,
+            proof
+          );
+
+        proof = await getProof(tree, 1);
+        await time.increaseTo(currentTimestamp + 201);
+
+        const tx = await matrixVaultInstance
+          .connect(account1)
+          .redeemForCollectionHolder(
+            eventId,
+            account1.address,
+            1,
+            currentTimestamp + 200,
+            starship.address,
+            0,
+            1000000,
+            0,
+            proof
+          );
+
+        await expect(tx).to.changeTokenBalances(c98, [matrixVaultInstance, account1], [-1000000, 1000000]);
+      });
+    });
   });
 
   describe("Fee", async () => {
