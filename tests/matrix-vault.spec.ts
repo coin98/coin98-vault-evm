@@ -31,6 +31,7 @@ async function createEvent() {
       collectionAddress: starship.address,
       tokenId: 0,
       receivingAmount: 1000000,
+      sendingAmount: 0,
     },
     <WhitelistCollectionData>{
       index: 1,
@@ -38,6 +39,7 @@ async function createEvent() {
       collectionAddress: starship.address,
       tokenId: 1,
       receivingAmount: 1000000,
+      sendingAmount: 0,
     },
     <WhitelistCollectionData>{
       index: 2,
@@ -45,6 +47,7 @@ async function createEvent() {
       collectionAddress: starship.address,
       tokenId: 2,
       receivingAmount: 1000000,
+      sendingAmount: 0,
     },
   ];
 
@@ -79,6 +82,7 @@ describe("MatrixVault", function () {
             collectionAddress: starship.address,
             tokenId: 0,
             receivingAmount: 1000000,
+            sendingAmount: 0,
           },
           <WhitelistCollectionData>{
             index: 1,
@@ -86,6 +90,7 @@ describe("MatrixVault", function () {
             collectionAddress: starship.address,
             tokenId: 1,
             receivingAmount: 1000000,
+            sendingAmount: 0,
           },
           <WhitelistCollectionData>{
             index: 2,
@@ -93,6 +98,7 @@ describe("MatrixVault", function () {
             collectionAddress: starship.address,
             tokenId: 2,
             receivingAmount: 1000000,
+            sendingAmount: 0,
           },
         ];
 
@@ -106,7 +112,7 @@ describe("MatrixVault", function () {
     });
   });
 
-  describe("Redeem event", async () => {
+  describe("Redeem with specific token ID", async () => {
     context("Redeem with right params", async () => {
       it("Should emit event", async () => {
         let { eventId, currentTimestamp, tree } = await loadFixture(createEvent);
@@ -123,6 +129,8 @@ describe("MatrixVault", function () {
             starship.address,
             0,
             1000000,
+            0,
+            false,
             proof
           );
 
@@ -144,6 +152,8 @@ describe("MatrixVault", function () {
             starship.address,
             0,
             1000000,
+            0,
+            false,
             proof
           );
 
@@ -167,6 +177,8 @@ describe("MatrixVault", function () {
             starship.address,
             0,
             1000000,
+            0,
+            false,
             proof
           );
 
@@ -181,6 +193,8 @@ describe("MatrixVault", function () {
               starship.address,
               0,
               1000000,
+              0,
+              false,
               proof
             )
         ).to.be.revertedWith("C98Vault: Claimed");
@@ -204,6 +218,8 @@ describe("MatrixVault", function () {
               starship.address,
               0,
               1000000,
+              0,
+              false,
               proof.slice(1)
             )
         ).to.be.revertedWith("C98Vault: Invalid proof");
@@ -227,6 +243,8 @@ describe("MatrixVault", function () {
               starship.address,
               0,
               1000000,
+              0,
+              false,
               proof
             )
         ).to.be.revertedWith("C98Vault: Invalid event");
@@ -250,6 +268,8 @@ describe("MatrixVault", function () {
               starship.address,
               0,
               1000000,
+              0,
+              false,
               proof
             )
         ).to.be.revertedWith("C98Vault: Invalid proof");
@@ -273,6 +293,8 @@ describe("MatrixVault", function () {
               ethers.constants.AddressZero,
               0,
               1000000,
+              0,
+              false,
               proof
             )
         ).to.be.revertedWith("C98Vault: Invalid collection");
@@ -296,6 +318,8 @@ describe("MatrixVault", function () {
               starship.address,
               0,
               1000000,
+              0,
+              false,
               proof
             )
         ).to.be.revertedWith("C98Vault: Invalid proof");
@@ -318,6 +342,8 @@ describe("MatrixVault", function () {
             starship.address,
             0,
             1000000,
+            0,
+            false,
             proof
           );
 
@@ -332,9 +358,88 @@ describe("MatrixVault", function () {
               starship.address,
               0,
               1000000,
+              0,
+              false,
               proof
             )
         ).to.be.revertedWith("C98Vault: Claimed");
+      });
+    });
+  });
+
+  describe("Redeem with any token ID in collection", async () => {
+    context("Redeem with right params", async () => {
+      it("Should emit event", async () => {
+        const eventId = ethers.utils.solidityKeccak256(["string"], ["event"]);
+        const currentTimestamp = await time.latest();
+        let whitelist = [
+          <WhitelistCollectionData>{
+            index: 0,
+            unlockTimestamp: (await time.latest()) + 100,
+            collectionAddress: starship.address,
+            tokenId: 0,
+            receivingAmount: 1000000,
+            sendingAmount: 0,
+          },
+          <WhitelistCollectionData>{
+            index: 1,
+            unlockTimestamp: (await time.latest()) + 100,
+            collectionAddress: starship.address,
+            tokenId: 0,
+            receivingAmount: 1000000,
+            sendingAmount: 0,
+          },
+          <WhitelistCollectionData>{
+            index: 2,
+            unlockTimestamp: (await time.latest()) + 100,
+            collectionAddress: starship.address,
+            tokenId: 0,
+            receivingAmount: 1000000,
+            sendingAmount: 0,
+          },
+        ];
+
+        const tree = createWhitelistCollectionTree(whitelist);
+        const root = "0x" + tree.root().hash.toString("hex");
+
+        await matrixVaultInstance.connect(owner).createEvent(eventId, root, c98.address, ZERO_ADDRESS);
+
+        let proof = await getProof(tree, 0);
+        await time.increaseTo(currentTimestamp + 101);
+        const tx = await matrixVaultInstance
+          .connect(account1)
+          .redeemForCollectionHolder(
+            eventId,
+            account1.address,
+            0,
+            currentTimestamp + 100,
+            starship.address,
+            0,
+            1000000,
+            0,
+            true,
+            proof
+          );
+
+        await expect(tx).to.emit(matrixVaultInstance, "RedeemedForHolder");
+
+        proof = await getProof(tree, 1);
+        const tx1 = await matrixVaultInstance
+          .connect(account2)
+          .redeemForCollectionHolder(
+            eventId,
+            account2.address,
+            1,
+            currentTimestamp + 100,
+            starship.address,
+            1,
+            1000000,
+            0,
+            true,
+            proof
+          );
+
+        await expect(tx1).to.emit(matrixVaultInstance, "RedeemedForHolder");
       });
     });
   });

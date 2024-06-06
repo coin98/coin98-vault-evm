@@ -13,10 +13,10 @@ contract MatrixVault is Coin98VaultV2 {
 
     event RedeemedForHolder(
         uint256 indexed eventId,
-        uint256 indexed index,
-        uint256 timestamp,
         address receiver,
         address collectionAddress,
+        uint256 index,
+        uint256 timestamp,
         uint256 tokenId,
         uint256 receivingAmount
     );
@@ -33,6 +33,8 @@ contract MatrixVault is Coin98VaultV2 {
         address collectionAddress,
         uint256 tokenId,
         uint256 receivingAmount,
+        uint256 sendingAmount,
+        bool forAllHolder,
         bytes32[] calldata proofs
     ) public payable {
         uint256 fee = IVaultConfig(_factory).fee();
@@ -43,18 +45,26 @@ contract MatrixVault is Coin98VaultV2 {
         require(collectionAddress != address(0), "C98Vault: Invalid collection");
         require(receiver != address(0), "C98Vault: Invalid receiver");
         require(VRC725(collectionAddress).balanceOf(receiver) > 0, "C98Vault: Receiver has no NFT");
+        require(VRC725(collectionAddress).ownerOf(tokenId) == receiver, "C98Vault: Invalid owner");
         require(timestamp <= block.timestamp, "C98Vault: Schedule locked");
-        require(VRC725(collectionAddress).ownerOf(tokenId) == msg.sender, "C98Vault: Invalid owner");
-        require(msg.sender == receiver, "C98Vault: Invalid receiver");
         require(!_isClaimed[tokenId][eventId], "C98Vault: Claimed");
+        require(!isRedeemed(eventId, index), "C98Vault: Redeemed");
 
         EventData storage eventData = _eventDatas[eventId];
-
         require(eventData.isActive > 0, "C98Vault: Invalid event");
 
-        bytes32 node = keccak256(abi.encodePacked(index, timestamp, collectionAddress, tokenId, receivingAmount));
-        require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
-        require(!isRedeemed(eventId, index), "C98Vault: Redeemed");
+        if (forAllHolder) {
+            uint256 zero = 0;
+            bytes32 node = keccak256(
+                abi.encodePacked(index, timestamp, collectionAddress, zero, receivingAmount, sendingAmount)
+            );
+            require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
+        } else {
+            bytes32 node = keccak256(
+                abi.encodePacked(index, timestamp, collectionAddress, tokenId, receivingAmount, sendingAmount)
+            );
+            require(MerkleProof.verify(proofs, eventData.merkleRoot, node), "C98Vault: Invalid proof");
+        }
 
         {
             uint256 availableAmount;
@@ -69,13 +79,16 @@ contract MatrixVault is Coin98VaultV2 {
 
         _setRedemption(eventId, index);
         _setTokenClaimed(tokenId, eventId);
+
         if (fee > 0) {
             uint256 reward = IVaultConfig(_factory).ownerReward();
             uint256 finalFee = fee - reward;
             (bool success, ) = _factory.call{value: finalFee, gas: gasLimit}("");
             require(success, "C98Vault: Unable to charge fee");
         }
-
+        if (sendingAmount > 0) {
+            IERC20(eventData.sendingToken).safeTransferFrom(_msgSender(), address(this), sendingAmount);
+        }
         if (eventData.receivingToken == address(0)) {
             (bool success, ) = receiver.call{value: receivingAmount, gas: gasLimit}("");
             require(success, "C98Vault: Send ETH failed");
@@ -83,6 +96,6 @@ contract MatrixVault is Coin98VaultV2 {
             IERC20(eventData.receivingToken).safeTransfer(receiver, receivingAmount);
         }
 
-        emit RedeemedForHolder(eventId, index, timestamp, receiver, collectionAddress, tokenId, receivingAmount);
+        emit RedeemedForHolder(eventId, receiver, collectionAddress, index, timestamp, tokenId, receivingAmount);
     }
 }
