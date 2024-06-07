@@ -73,7 +73,7 @@ contract MatrixVault is Coin98VaultV2 {
         }
 
         if (fee > 0) {
-            require(_msgValue() >= fee, "C98Vault: Invalid fee");
+            require(_msgValue() >= fee, "C98Vault: Insufficient fee");
             uint256 reward = IVaultConfig(_factory).ownerReward();
             uint256 finalFee = fee - reward;
             (bool success, ) = _factory.call{value: finalFee, gas: gasLimit}("");
@@ -107,7 +107,7 @@ contract MatrixVault is Coin98VaultV2 {
         uint256 sendingAmount,
         bytes32[] calldata proofs
     ) public payable {
-        require(!_isClaimedByToken[eventId][index][tokenId], "C98Vault: Claimed");
+        require(!_isClaimedByToken[eventId][index][tokenId], "C98Vault: Token is claimed");
         uint256 zero = 0;
         bytes32 node = keccak256(
             abi.encodePacked(index, timestamp, collectionAddress, zero, receivingAmount, sendingAmount)
@@ -150,7 +150,7 @@ contract MatrixVault is Coin98VaultV2 {
         uint256 sendingAmount,
         bytes32[] calldata proofs
     ) public payable {
-        require(!isRedeemed(eventId, index), "C98Vault: Redeemed");
+        require(!isRedeemed(eventId, index), "C98Vault: Event is redeemed");
 
         bytes32 node = keccak256(
             abi.encodePacked(index, timestamp, collectionAddress, tokenId, receivingAmount, sendingAmount)
