@@ -112,7 +112,7 @@ describe("MatrixVault", function () {
     });
   });
 
-  describe("Redeem with specific token ID", async () => {
+  describe("Redeem with specific token holder", async () => {
     context("Redeem with right params", async () => {
       it("Should emit event", async () => {
         let { eventId, currentTimestamp, tree } = await loadFixture(createEvent);
@@ -285,7 +285,7 @@ describe("MatrixVault", function () {
               0,
               proof
             )
-        ).to.be.revertedWith("C98Vault: Redeemed");
+        ).to.be.revertedWith("C98Vault: Event is redeemed");
       });
     });
 
@@ -443,7 +443,55 @@ describe("MatrixVault", function () {
               0,
               proof
             )
-        ).to.be.revertedWith("C98Vault: Redeemed");
+        ).to.be.revertedWith("C98Vault: Event is redeemed");
+      });
+    });
+
+    context("Redeem with invalid schedule", async () => {
+      it("Should revert", async () => {
+        let { eventId, currentTimestamp, tree } = await loadFixture(createEvent);
+        let proof = await getProof(tree, 0);
+
+        await time.increaseTo(currentTimestamp + 90);
+        await expect(
+          matrixVaultInstance
+            .connect(account1)
+            .redeemForSpecificTokenHolder(
+              eventId,
+              account1.address,
+              0,
+              currentTimestamp + 100,
+              starship.address,
+              0,
+              1000000,
+              0,
+              proof
+            )
+        ).to.be.revertedWith("C98Vault: Schedule locked");
+      });
+    });
+
+    context("Redeem with token not owned by holder", async () => {
+      it("Should revert", async () => {
+        let { eventId, currentTimestamp, tree } = await loadFixture(createEvent);
+        let proof = await getProof(tree, 0);
+
+        await time.increaseTo(currentTimestamp + 101);
+        await expect(
+          matrixVaultInstance
+            .connect(account1)
+            .redeemForSpecificTokenHolder(
+              eventId,
+              account1.address,
+              0,
+              currentTimestamp + 100,
+              starship.address,
+              1,
+              1000000,
+              0,
+              proof
+            )
+        ).to.be.revertedWith("C98Vault: Invalid owner");
       });
     });
   });
@@ -611,7 +659,7 @@ describe("MatrixVault", function () {
               0,
               proof
             )
-        ).to.be.revertedWith("C98Vault: Claimed");
+        ).to.be.revertedWith("C98Vault: Token is claimed");
       });
     });
 
@@ -679,6 +727,54 @@ describe("MatrixVault", function () {
         await expect(tx).to.changeTokenBalances(c98, [matrixVaultInstance, account1], [-1000000, 1000000]);
       });
     });
+
+    context("Redeem with wrong proof", async () => {
+      it("Should revert", async () => {
+        const eventId = ethers.utils.solidityKeccak256(["string"], ["event"]);
+        const currentTimestamp = await time.latest();
+        let whitelist = [
+          <WhitelistCollectionData>{
+            index: 0,
+            unlockTimestamp: (await time.latest()) + 100,
+            collectionAddress: starship.address,
+            tokenId: 0,
+            receivingAmount: 1000000,
+            sendingAmount: 0,
+          },
+          <WhitelistCollectionData>{
+            index: 1,
+            unlockTimestamp: (await time.latest()) + 100,
+            collectionAddress: starship.address,
+            tokenId: 0,
+            receivingAmount: 1000000,
+            sendingAmount: 0,
+          },
+        ];
+
+        const tree = createWhitelistCollectionTree(whitelist);
+        const root = "0x" + tree.root().hash.toString("hex");
+
+        await matrixVaultInstance.connect(owner).createEvent(eventId, root, c98.address, ZERO_ADDRESS);
+
+        let proof = await getProof(tree, 0);
+        await time.increaseTo(currentTimestamp + 101);
+        await expect(
+          matrixVaultInstance
+            .connect(account1)
+            .redeemForCollectionHolder(
+              eventId,
+              account1.address,
+              0,
+              currentTimestamp + 100,
+              starship.address,
+              0,
+              1000000,
+              0,
+              proof.slice(1)
+            )
+        ).to.be.revertedWith("C98Vault: Invalid proof");
+      });
+    });
   });
 
   describe("Fee", async () => {
@@ -690,10 +786,9 @@ describe("MatrixVault", function () {
       });
     });
 
-    context("Transfer fee when redeem", async () => {
+    context("Fee in native", async () => {
       it("Should transfer fee successfully", async () => {
         await matrixVaultFactory.connect(owner).setFee(1000, 0);
-
         let { eventId, currentTimestamp, tree } = await loadFixture(createEvent);
         let proof = await getProof(tree, 0);
 
@@ -716,6 +811,32 @@ describe("MatrixVault", function () {
           );
 
         await expect(tx).to.changeEtherBalances([account1, matrixVaultFactory], [-1000, 1000]);
+      });
+
+      it("Should revert if fee is not enough", async () => {
+        await matrixVaultFactory.connect(owner).setFee(1000, 0);
+        let { eventId, currentTimestamp, tree } = await loadFixture(createEvent);
+        let proof = await getProof(tree, 0);
+
+        await time.increaseTo(currentTimestamp + 101);
+        await expect(
+          matrixVaultInstance
+            .connect(account1)
+            .redeemForSpecificTokenHolder(
+              eventId,
+              account1.address,
+              0,
+              currentTimestamp + 100,
+              starship.address,
+              0,
+              1000000,
+              0,
+              proof,
+              {
+                value: 999,
+              }
+            )
+        ).to.be.revertedWith("C98Vault: Insufficient fee");
       });
     });
   });
