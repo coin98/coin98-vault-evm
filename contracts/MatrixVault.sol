@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./Coin98VaultV2.sol";
 import "./lib/Token.sol";
-import "./lib/VRC725.sol";
 
 contract MatrixVault is Coin98VaultV2 {
     using AdvancedERC20 for IERC20;
@@ -53,7 +52,7 @@ contract MatrixVault is Coin98VaultV2 {
 
         require(collectionAddress != address(0), "C98Vault: Invalid collection");
         require(receiver != address(0), "C98Vault: Invalid receiver");
-        require(VRC725(collectionAddress).ownerOf(tokenId) == receiver, "C98Vault: Invalid owner");
+        require(IERC721(collectionAddress).ownerOf(tokenId) == receiver, "C98Vault: Invalid owner");
         require(timestamp <= block.timestamp, "C98Vault: Schedule locked");
 
         EventData memory eventData = _eventDatas[eventId];
