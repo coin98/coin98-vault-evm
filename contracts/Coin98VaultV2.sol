@@ -25,11 +25,11 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
 
   using AdvancedERC20 for IERC20;
 
-  address private _factory;
-  address[] private _admins;
-  mapping(address => bool) private _adminStatuses;
-  mapping(uint256 => EventData) private _eventDatas;
-  mapping(uint256 => mapping(uint256 => bool)) private _eventRedemptions;
+  address internal _factory;
+  address[] internal _admins;
+  mapping(address => bool) internal _adminStatuses;
+  mapping(uint256 => EventData) internal _eventDatas;
+  mapping(uint256 => mapping(uint256 => bool)) internal _eventRedemptions;
 
   struct EventData {
     bytes32 merkleRoot;
@@ -45,7 +45,7 @@ contract Coin98VaultV2 is ICoin98Vault, OwnableUpgradeable, Payable {
   event Redeemed(uint256 eventId, uint256 index, uint256 timestamp, address indexed recipient, address indexed receivingToken, uint256 receivingTokenAmount, address indexed sendingToken, uint256 sendingTokenAmount);
   event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
 
-  function _setRedemption(uint256 eventId_, uint256 index_) private {
+  function _setRedemption(uint256 eventId_, uint256 index_) internal {
     _eventRedemptions[eventId_][index_] = true;
   }
 
