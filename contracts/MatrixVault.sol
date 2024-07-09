@@ -10,27 +10,11 @@ contract MatrixVault is Coin98VaultV2 {
     //  (Event ID => Index ID => NFT ID => Claimed))
     mapping(uint256 => mapping(uint256 => mapping(uint256 => bool))) internal _isClaimedByToken;
 
-    event RedeemedForCollectionHolder(
-        uint256 indexed eventId,
-        address receiver,
-        address collectionAddress,
-        uint256 index,
-        uint256 timestamp,
-        uint256 tokenId,
-        uint256 receivingAmount,
-        uint256 sendingAmount
-    );
-
-    event RedeemedForSpecificTokenHolder(
-        uint256 indexed eventId,
-        address receiver,
-        address collectionAddress,
-        uint256 index,
-        uint256 timestamp,
-        uint256 tokenId,
-        uint256 receivingAmount,
-        uint256 sendingAmount
-    );
+    /**
+     * @notice Initialize
+     * @param broadcaster Coin98 Broadcast address for single point of event subscription
+     */
+    constructor(address broadcaster) Coin98VaultV2(broadcaster) {}
 
     function _setTokenClaimed(uint256 eventId, uint256 index, uint256 tokenId) internal {
         _isClaimedByToken[eventId][index][tokenId] = true;
@@ -126,7 +110,8 @@ contract MatrixVault is Coin98VaultV2 {
 
         _setTokenClaimed(eventId, index, tokenId);
 
-        emit RedeemedForCollectionHolder(
+        // Prevent stack too deep
+        bytes memory data = abi.encode(
             eventId,
             receiver,
             collectionAddress,
@@ -136,6 +121,8 @@ contract MatrixVault is Coin98VaultV2 {
             receivingAmount,
             sendingAmount
         );
+
+        _emitEvent("RedeemedForCollectionHolder", _msgSender(), address(this), data);
     }
 
     function redeemForSpecificTokenHolder(
@@ -167,7 +154,8 @@ contract MatrixVault is Coin98VaultV2 {
         );
         _setRedemption(eventId, index);
 
-        emit RedeemedForSpecificTokenHolder(
+        // Prevent stack too deep
+        bytes memory data = abi.encode(
             eventId,
             receiver,
             collectionAddress,
@@ -177,5 +165,7 @@ contract MatrixVault is Coin98VaultV2 {
             receivingAmount,
             sendingAmount
         );
+
+        _emitEvent("RedeemedForSpecificTokenHolder", _msgSender(), address(this), data);
     }
 }
