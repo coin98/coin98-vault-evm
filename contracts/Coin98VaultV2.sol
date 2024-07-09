@@ -290,15 +290,6 @@ contract Coin98VaultV2Factory is Ownable, Payable, IVaultConfig, BroadcasterHelp
         _gasLimit = 9000;
     }
 
-    /// @dev Emit `FeeUpdated` when a new vault is created
-    event Created(address indexed vault);
-    /// @dev Emit `FeeUpdated` when fee of the protocol is updated
-    event FeeUpdated(uint256 fee);
-    /// @dev Emit `OwnerRewardUpdated` when reward for vault owner is updated
-    event OwnerRewardUpdated(uint256 fee);
-    /// @dev Emit `Withdrawn` when owner withdraw fund from the factory
-    event Withdrawn(address indexed owner, address indexed recipient, address indexed token, uint256 value);
-
     /// @dev get current protocol fee in gas token
     function fee() external view override returns (uint256) {
         return _fee;
