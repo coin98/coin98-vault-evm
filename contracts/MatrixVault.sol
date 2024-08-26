@@ -93,7 +93,7 @@ contract MatrixVault is Coin98VaultV2 {
         require(!_isClaimedByToken[eventId][index][tokenId], "C98Vault: Token is claimed");
         uint256 zero = 0;
         bytes32 node = keccak256(
-            abi.encodePacked(index, timestamp, collectionAddress, zero, receivingAmount, sendingAmount)
+            abi.encodePacked("collection", index, timestamp, collectionAddress, zero, receivingAmount, sendingAmount)
         );
 
         _redeemForCollectionHolder(
@@ -139,7 +139,7 @@ contract MatrixVault is Coin98VaultV2 {
         require(!isRedeemed(eventId, index), "C98Vault: Event is redeemed");
 
         bytes32 node = keccak256(
-            abi.encodePacked(index, timestamp, collectionAddress, tokenId, receivingAmount, sendingAmount)
+            abi.encodePacked("specific", index, timestamp, collectionAddress, tokenId, receivingAmount, sendingAmount)
         );
         _redeemForCollectionHolder(
             eventId,

@@ -27,6 +27,7 @@ async function createEvent() {
   const currentTimestamp = await time.latest();
   let whitelist = [
     <WhitelistCollectionData>{
+      type:"specific",
       index: 0,
       unlockTimestamp: (await time.latest()) + 100,
       collectionAddress: starship.address,
@@ -35,6 +36,7 @@ async function createEvent() {
       sendingAmount: 0,
     },
     <WhitelistCollectionData>{
+      type:"specific",
       index: 1,
       unlockTimestamp: (await time.latest()) + 200,
       collectionAddress: starship.address,
@@ -43,6 +45,7 @@ async function createEvent() {
       sendingAmount: 0,
     },
     <WhitelistCollectionData>{
+      type:"specific",
       index: 2,
       unlockTimestamp: (await time.latest()) + 300,
       collectionAddress: starship.address,
@@ -78,6 +81,7 @@ describe("MatrixVault", function () {
 
         let whitelist = [
           <WhitelistCollectionData>{
+            type:"specific",
             index: 0,
             unlockTimestamp: currentTimestamp + 100,
             collectionAddress: starship.address,
@@ -86,6 +90,7 @@ describe("MatrixVault", function () {
             sendingAmount: 0,
           },
           <WhitelistCollectionData>{
+            type:"specific",
             index: 1,
             unlockTimestamp: currentTimestamp + 200,
             collectionAddress: starship.address,
@@ -94,6 +99,7 @@ describe("MatrixVault", function () {
             sendingAmount: 0,
           },
           <WhitelistCollectionData>{
+            type:"specific",
             index: 2,
             unlockTimestamp: currentTimestamp + 300,
             collectionAddress: starship.address,
@@ -167,6 +173,7 @@ describe("MatrixVault", function () {
 
         let whitelist = [
           <WhitelistCollectionData>{
+            type:"specific",
             index: 0,
             unlockTimestamp: currentTimestamp + 100,
             collectionAddress: starship.address,
@@ -212,6 +219,7 @@ describe("MatrixVault", function () {
 
         let whitelist = [
           <WhitelistCollectionData>{
+            type:"specific",
             index: 0,
             unlockTimestamp: currentTimestamp + 100,
             collectionAddress: starship.address,
@@ -504,6 +512,7 @@ describe("MatrixVault", function () {
         const currentTimestamp = await time.latest();
         let whitelist = [
           <WhitelistCollectionData>{
+            type:"collection",
             index: 0,
             unlockTimestamp: (await time.latest()) + 100,
             collectionAddress: starship.address,
@@ -558,6 +567,7 @@ describe("MatrixVault", function () {
           const currentTimestamp = await time.latest();
           let whitelist = [
             <WhitelistCollectionData>{
+              type:"collection",
               index: 0,
               unlockTimestamp: (await time.latest()) + 100,
               collectionAddress: starship.address,
@@ -615,6 +625,7 @@ describe("MatrixVault", function () {
           const currentTimestamp = await time.latest();
           let whitelist = [
             <WhitelistCollectionData>{
+              type:"collection",
               index: 0,
               unlockTimestamp: (await time.latest()) + 100,
               collectionAddress: starship.address,
@@ -669,6 +680,7 @@ describe("MatrixVault", function () {
           const currentTimestamp = await time.latest();
           let whitelist = [
             <WhitelistCollectionData>{
+              type:"collection",
               index: 0,
               unlockTimestamp: (await time.latest()) + 100,
               collectionAddress: starship.address,
@@ -677,6 +689,7 @@ describe("MatrixVault", function () {
               sendingAmount: 0,
             },
             <WhitelistCollectionData>{
+              type:"collection",
               index: 1,
               unlockTimestamp: (await time.latest()) + 200,
               collectionAddress: starship.address,
@@ -734,6 +747,7 @@ describe("MatrixVault", function () {
           const currentTimestamp = await time.latest();
           let whitelist = [
             <WhitelistCollectionData>{
+              type:"collection",
               index: 0,
               unlockTimestamp: (await time.latest()) + 100,
               collectionAddress: starship.address,
@@ -742,6 +756,7 @@ describe("MatrixVault", function () {
               sendingAmount: 0,
             },
             <WhitelistCollectionData>{
+              type:"collection",
               index: 1,
               unlockTimestamp: (await time.latest()) + 100,
               collectionAddress: starship.address,
@@ -773,6 +788,68 @@ describe("MatrixVault", function () {
                 proof.slice(1)
               )
           ).to.be.revertedWith("C98Vault: Invalid proof");
+        });
+      });
+
+      context("Redeem for specific token", async () => {
+        it("Should revert", async () => {
+            const eventId = ethers.utils.solidityKeccak256(["string"], ["event"]);
+            const currentTimestamp = await time.latest();
+            let whitelist = [
+              <WhitelistCollectionData>{
+                type:"collection",
+                index: 0,
+                unlockTimestamp: (await time.latest()) + 100,
+                collectionAddress: starship.address,
+                tokenId: 0,
+                receivingAmount: 1000000,
+                sendingAmount: 0,
+              },
+              <WhitelistCollectionData>{
+                type:"collection",
+                index: 1,
+                unlockTimestamp: (await time.latest()) + 200,
+                collectionAddress: starship.address,
+                tokenId: 0,
+                receivingAmount: 1000000,
+                sendingAmount: 0,
+              },
+            ];
+
+            const tree = createWhitelistCollectionTree(whitelist);
+            const root = "0x" + tree.root().hash.toString("hex");
+
+            await matrixVaultInstance.connect(owner).createEvent(eventId, root, c98.address, ZERO_ADDRESS);
+
+            let proof = await getProof(tree, 0);
+            await time.increaseTo(currentTimestamp + 101);
+            await matrixVaultInstance
+              .connect(account1)
+              .redeemForCollectionHolder(
+                eventId,
+                account1.address,
+                0,
+                currentTimestamp + 100,
+                starship.address,
+                0,
+                1000000,
+                0,
+                proof
+              );
+              console.log("hello");
+              await expect(matrixVaultInstance
+              .connect(account1)
+              .redeemForSpecificTokenHolder(
+                eventId,
+                account1.address,
+                0,
+                currentTimestamp + 100,
+                starship.address,
+                0,
+                1000000,
+                0,
+                proof
+              )).to.be.revertedWith("C98Vault: Invalid proof");
         });
       });
     });
