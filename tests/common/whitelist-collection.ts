@@ -2,6 +2,7 @@ import { utils } from "ethers";
 import { MerkleTreeKeccak } from "@coin98/solidity-support-library";
 
 export interface WhitelistCollectionData {
+  type: string;
   index: number;
   unlockTimestamp: number;
   collectionAddress: string;
@@ -13,8 +14,9 @@ export interface WhitelistCollectionData {
 export function createWhitelistCollectionTree(whitelists: WhitelistCollectionData[]): MerkleTreeKeccak {
   const hashes = whitelists.map((whitelist) => {
     const hash = utils.solidityKeccak256(
-      ["uint256", "uint256", "address", "uint256", "uint256", "uint256"],
+      ["string","uint256", "uint256", "address", "uint256", "uint256", "uint256"],
       [
+        whitelist.type,
         whitelist.index,
         whitelist.unlockTimestamp,
         whitelist.collectionAddress,
