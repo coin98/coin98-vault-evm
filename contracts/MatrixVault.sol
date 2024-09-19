@@ -90,7 +90,7 @@ contract MatrixVault is Coin98VaultV2 {
         uint256 sendingAmount,
         bytes32[] calldata proofs
     ) public payable {
-        require(!_isClaimedByToken[eventId][index][tokenId], "C98Vault: Token is claimed");
+        require(!isClaimedByToken(eventId, index, tokenId), "C98Vault: Token is claimed");
         uint256 zero = 0;
         bytes32 node = keccak256(
             abi.encodePacked("collection", index, timestamp, collectionAddress, zero, receivingAmount, sendingAmount)
@@ -167,5 +167,10 @@ contract MatrixVault is Coin98VaultV2 {
         );
 
         _emitEvent("RedeemedForSpecificTokenHolder", _msgSender(), address(this), data);
+    }
+
+    // GETTERS
+    function isClaimedByToken(uint256 eventId, uint256 index, uint256 tokenId) public view returns (bool) {
+        return _isClaimedByToken[eventId][index][tokenId];
     }
 }
