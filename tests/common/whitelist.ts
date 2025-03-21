@@ -1,5 +1,5 @@
 import { utils } from 'ethers';
-import { MerkleTreeKeccak } from '@coin98/solidity-support-library';
+import { MerkleTreeKeccak } from '../shared';
 
 export interface WhitelistData {
   index: number;
