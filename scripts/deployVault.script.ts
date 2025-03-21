@@ -1,14 +1,9 @@
 // const hhe = require("hardhat");
 import hhe from "hardhat";
 
-
-
 async function main() {
     console.log("🚀 Deploying contract...");
-
     try {
-
-
         const [owner] = await hhe.ethers.getSigners();
         console.log("🚀 ~ main ~ owner:", owner.address)
 

@@ -73,7 +73,7 @@ const config: HardhatUserConfig = {
     bscTestnet: {
       url: "https://bsc-testnet-rpc.publicnode.com",
       accounts: [privateKey]
-  },
+    },
   },
   etherscan: {
     apiKey: etherscanApi
