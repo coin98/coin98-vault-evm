@@ -10,25 +10,28 @@ async function main() {
         //Broadcaster
         const Broadcaster = await hhe.ethers.getContractFactory("Broadcaster");
         const broadcaster = await Broadcaster.connect(owner).deploy();
-        await broadcaster.deployed();
-        console.log("✅ Broadcaster deployed at:", broadcaster.address);
+        await broadcaster.waitForDeployment();
+        const broadcastAddr = await broadcaster.getAddress()
+
+        console.log("✅ Broadcaster deployed at:", broadcastAddr);
 
         // vaultImplementation
         const contractVaultImplementation = await hhe.ethers.getContractFactory("Coin98VaultV2");
-        const vaultImplementation = await contractVaultImplementation.connect(owner).deploy(broadcaster.address);
-        await vaultImplementation.deployed();
-        console.log("✅ vaultImplementation deployed at:", vaultImplementation.address);
+        const vaultImplementation = await contractVaultImplementation.connect(owner).deploy(broadcastAddr);
+        await vaultImplementation.waitForDeployment();
+        const vaultImplementAddr = await vaultImplementation.getAddress()
+        console.log("✅ vaultImplementation deployed at:", vaultImplementAddr);
 
         // vaultFactory
         const contractVaultFactory = await hhe.ethers.getContractFactory("Coin98VaultV2Factory");
-        const vaultFactory = await contractVaultFactory.connect(owner).deploy(vaultImplementation.address, broadcaster.address);
-        await vaultFactory.deployed();
-        console.log("🚀 ~ main ~ vaultFactory:", vaultFactory.address)
+        const vaultFactory = await contractVaultFactory.connect(owner).deploy(vaultImplementAddr, broadcastAddr);
+        await vaultFactory.waitForDeployment();
+        const factoryAddr = await vaultFactory.getAddress()
+        console.log("🚀 ~ main ~ vaultFactory:", factoryAddr)
 
         // registerProject
-        const registerProject = await broadcaster.connect(owner).registerProject(vaultFactory.projectKey(), [vaultFactory.address], [vaultFactory.address]);
-        console.log("🚀 ~ main ~ registerProject:", registerProject)
-
+        const registerProject = await broadcaster.connect(owner).registerProject(await vaultFactory.projectKey(), [factoryAddr], [factoryAddr]);
+        console.log("🚀 ~ main ~ registerProject done")
         // //createVault
         // const salt = hhe.ethers.utils.keccak256(hhe.ethers.utils.toUtf8Bytes("vault_admin"));
         // const deployTransaction = await vaultFactory.connect(owner).createVault(owner.address, salt);

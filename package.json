@@ -16,24 +16,32 @@
     "url": "git+https://github.com/coin98/coin98-vault-evm.git"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-chai-matchers": "~1.0.5",
-    "@nomicfoundation/hardhat-network-helpers": "~1.0.8",
-    "@nomicfoundation/hardhat-toolbox": "~1.0.2",
-    "@types/chai": "~4.3.4",
-    "@types/mocha": "~9.1.0",
-    "chai": "~4.3.7",
-    "dotenv": "~16.0.3",
-    "hardhat": "~2.12.6",
-    "hardhat-dependency-compiler": "~1.1.3",
-    "hardhat-deploy": "^0.11.45",
-    "hardhat-gas-reporter": "~1.0.9",
-    "mocha": "~9.1.0",
-    "ts-mocha": "~10.0.0",
-    "typescript": "~4.7.4"
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.2",
+    "@nomicfoundation/hardhat-ethers": "^3.0.4",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^1.1.1",
+    "@typechain/ethers-v6": "^0.4.3",
+    "@typechain/hardhat": "^8.0.3",
+    "@types/chai": "^4.3.5",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^20.5.0",
+    "chai": "^4.3.7",
+    "ethers": "^6.7.1",
+    "hardhat": "^2.17.1",
+    "hardhat-gas-reporter": "^1.0.9",
+    "solidity-coverage": "^0.8.4",
+    "ts-node": "^10.9.1",
+    "typechain": "^8.3.1",
+    "typescript": "^5.1.6"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^4.4.0",
-    "crypto-js": "^4.2.0",
-    "keccak": "^3.0.4"
+    "@openzeppelin/contracts": "~4.7.3",
+    "@openzeppelin/contracts-upgradeable": "~4.7.3",
+    "@types/lodash": "^4.14.197",
+    "dotenv": "^16.3.1",
+    "google-auth-library": "^9.0.0",
+    "google-spreadsheet": "^4.0.2",
+    "lodash": "^4.17.21"
   }
 }
