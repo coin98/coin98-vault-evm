@@ -4,7 +4,7 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { WhitelistCollectionData, createWhitelistCollectionTree, vaultFixture } from "./common";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Broadcaster, Coin98VaultV2Factory, MatrixVault, MockVRC25, MockVRC725 } from "../typechain-types";
-import { MerkleNode, MerkleTreeKeccak, ZERO_ADDRESS } from "@coin98/solidity-support-library";
+import { MerkleNode, MerkleTreeKeccak, ZERO_ADDRESS } from "./shared";
 
 let owner: SignerWithAddress;
 let account1: SignerWithAddress;
