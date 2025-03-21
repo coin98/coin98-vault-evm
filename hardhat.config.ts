@@ -71,6 +71,10 @@ const config: HardhatUserConfig = {
       url: `https://polygon-mainnet.infura.io/v3/${infuraKey}`,
       accounts: [privateKey]
     },
+    binanceSmartTestnet: {
+      url: "https://bsc-testnet-rpc.publicnode.com",
+      accounts: [privateKey]
+    },
   },
   etherscan: {
     apiKey: etherscanApi

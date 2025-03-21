@@ -31,5 +31,6 @@
     "mocha": "~9.1.0",
     "ts-mocha": "~10.0.0",
     "typescript": "~4.7.4"
-  }
+  },
+  "packageManager": "pnpm@7.27.1+sha512.22905e67eef5b2510d6ee397c1b57853acb138c7c4584be556e4faf82859d43f34a05d1e1f237887f85cd7752bcd55e95c8ddb7fbb0f7d15866fc4d892bbc950"
 }
