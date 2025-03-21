@@ -1,4 +1,4 @@
-import { Hasher, ZERO_ADDRESS } from "@coin98/solidity-support-library";
+import { Hasher, ZERO_ADDRESS } from "./shared";
 import * as hheh from "@nomicfoundation/hardhat-network-helpers";
 import { Signer, utils } from "ethers";
 import hhe from "hardhat";

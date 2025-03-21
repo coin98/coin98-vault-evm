@@ -16,7 +16,6 @@
     "url": "git+https://github.com/coin98/coin98-vault-evm.git"
   },
   "devDependencies": {
-    "@coin98/solidity-support-library": "~0.5.0",
     "@nomicfoundation/hardhat-chai-matchers": "~1.0.5",
     "@nomicfoundation/hardhat-network-helpers": "~1.0.8",
     "@nomicfoundation/hardhat-toolbox": "~1.0.2",
@@ -26,11 +25,15 @@
     "dotenv": "~16.0.3",
     "hardhat": "~2.12.6",
     "hardhat-dependency-compiler": "~1.1.3",
-    "hardhat-deploy": "~0.11.25",
+    "hardhat-deploy": "^0.11.45",
     "hardhat-gas-reporter": "~1.0.9",
     "mocha": "~9.1.0",
     "ts-mocha": "~10.0.0",
     "typescript": "~4.7.4"
   },
-  "packageManager": "pnpm@7.27.1+sha512.22905e67eef5b2510d6ee397c1b57853acb138c7c4584be556e4faf82859d43f34a05d1e1f237887f85cd7752bcd55e95c8ddb7fbb0f7d15866fc4d892bbc950"
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.4.0",
+    "crypto-js": "^4.2.0",
+    "keccak": "^3.0.4"
+  }
 }

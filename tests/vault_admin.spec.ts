@@ -1,4 +1,4 @@
-import { Hasher, ZERO_ADDRESS, ZERO_BYTES32 } from "@coin98/solidity-support-library";
+import { Hasher, ZERO_ADDRESS, ZERO_BYTES32 } from "./shared";
 import { expect } from "chai";
 import { Signer, utils } from "ethers";
 import hhe from "hardhat";
